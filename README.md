@@ -4,7 +4,7 @@ A proposed web-based system that helps smallholder farmers in Kenya check seed a
 
 ## Project status
 
-The development foundation is implemented: a Next.js frontend, NestJS API, PostgreSQL connection, environment setup, and build checks. Farmer authentication, product management and verification are the next implementation stages; they are not available yet.
+The development foundation and core database schema are implemented: a Next.js frontend, NestJS API, PostgreSQL connection, versioned database migrations, environment setup, and build checks. Farmer authentication, product management and verification are the next implementation stages; they are not available yet.
 
 ## Technology and structure
 
@@ -16,12 +16,13 @@ The development foundation is implemented: a Next.js frontend, NestJS API, Postg
 ```text
 frontend/              Web application, homepage and service status page
 backend/src/           API, environment validation and database connection
+backend/database/      SQL migrations, schema documentation and database tests
 scripts/               Local environment setup and integration smoke checks
 compose.yaml           Local PostgreSQL service
 .github/workflows/     Automated lint, type, build and connection checks
 ```
 
-The application database tables and migrations will be added during the database implementation step. This setup creates an empty development database and verifies connectivity.
+The database contains six core application tables: `users`, `farmers`, `administrators`, `products`, `product_codes` and `verification_records`. The migration adds their relationships, validation constraints and indexes. Tables start empty; no accounts or product data are seeded. See the [database guide](backend/database/README.md) for the schema, account transaction pattern and migration rules.
 
 ## First implementation milestone
 
@@ -70,6 +71,7 @@ Run these commands from the repository root:
 npm install
 npm run setup
 npm run db:up
+npm run db:migrate
 npm run dev
 ```
 
@@ -108,10 +110,13 @@ Frontend public environment settings are incorporated into the build; rebuild af
 
 ```sh
 npm run check
+npm run db:test
 npm run smoke
 ```
 
 `check` runs ESLint, TypeScript checks and production builds for both applications. `smoke` requires those builds and a running database. It temporarily starts the built applications on ports 3100 and 3101, checks the homepage, status page, API response, CORS and database readiness, then stops its servers. It does not test browser interactions or implement business-feature tests.
+
+`db:migrate` applies pending migrations transactionally and is safe to repeat. `db:status` shows applied and pending migrations. `db:test` tests migrations and database constraints in temporary schemas, without resetting the application tables. These database commands require PostgreSQL to be running. The API readiness endpoint checks connectivity only; use `db:status` to check migration state.
 
 To run the built applications yourself, use separate terminals:
 
@@ -120,7 +125,7 @@ npm run start --workspace backend
 npm run start --workspace frontend
 ```
 
-GitHub Actions is configured to run the checks with a separate temporary PostgreSQL database on pushes to `main` and pull requests. After the initial installation, use `npm ci` to reproduce the dependency versions in `package-lock.json`.
+GitHub Actions is configured to apply migrations and run database tests and application checks with a separate temporary PostgreSQL database on pushes to `main` and pull requests. After the initial installation, use `npm ci` to reproduce the dependency versions in `package-lock.json`.
 
 ### Troubleshooting
 

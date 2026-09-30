@@ -35,5 +35,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run db:test
       - run: npm run check
       - run: npm run smoke

@@ -21,6 +21,9 @@
     "check": "npm run lint && npm run typecheck && npm run build",
     "smoke": "node scripts/smoke.mjs",
     "db:up": "docker compose up -d --wait",
+    "db:migrate": "node backend/database/migrate.mjs",
+    "db:status": "node backend/database/migrate.mjs --status",
+    "db:test": "node --test backend/database/database.test.mjs",
     "db:stop": "docker compose stop",
     "db:logs": "docker compose logs --tail 50 postgres"
   },
