@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { currentUser } from '@/lib/session';
+import { accountPath } from '@/lib/auth-types';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -7,7 +9,8 @@ export const metadata: Metadata = {
   description: 'A seed and fertilizer product-code verification project for smallholder farmers in Kenya.',
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const user = await currentUser().catch(() => null);
   return (
     <html lang="en">
       <body>
@@ -17,7 +20,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <span className="brand-mark" aria-hidden="true">AV</span>
             <span>AgroVerify<span className="brand-caption">Seeds &amp; fertilizers</span></span>
           </Link>
-          <span className="stage-label">Early development</span>
+          <nav className="account-nav" aria-label="Account">{user ? <Link href={accountPath(user.role)}>My account</Link> : <><Link href="/login">Sign in</Link><Link href="/register" className="nav-register">Create account</Link></>}</nav>
         </header>
         {children}
         <footer className="site-footer">

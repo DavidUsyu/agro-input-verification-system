@@ -55,7 +55,7 @@ try {
     PORT: '3101', HOST: '127.0.0.1', FRONTEND_ORIGIN: webBase,
   });
   const requireFrontend = createRequire(new URL('frontend/package.json', root));
-  const frontend = launch('Frontend', [requireFrontend.resolve('next/dist/bin/next'), 'start', '--hostname', '127.0.0.1', '--port', '3100'], 'frontend/');
+  const frontend = launch('Frontend', [requireFrontend.resolve('next/dist/bin/next'), 'start', '--hostname', '127.0.0.1', '--port', '3100'], 'frontend/', { API_INTERNAL_URL: `${apiBase}/api` });
 
   const live = await waitFor(`${apiBase}/api/health`, backend);
   assert.deepEqual(await live.json(), { status: 'ok', service: 'agro-input-api' });

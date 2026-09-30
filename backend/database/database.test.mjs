@@ -6,7 +6,7 @@ import { loadMigrations, migrate, migrationStatus, schemaIdentifier } from './mi
 
 let client;
 let migrations;
-const expectedTables = ['administrators', 'farmers', 'product_codes', 'products', 'schema_migrations', 'users', 'verification_records'];
+const expectedTables = ['administrators', 'auth_sessions', 'farmers', 'product_codes', 'products', 'schema_migrations', 'users', 'verification_records'];
 
 before(async () => {
   client = await connectDatabase();
@@ -33,20 +33,20 @@ async function tables(schema) {
 
 test('migration status is read-only on an empty schema', async () => {
   await withSchema(async (schema) => {
-    assert.deepEqual(await migrationStatus(client, { schema }), [{ name: migrations[0].name, status: 'pending' }]);
+    assert.deepEqual(await migrationStatus(client, { schema }), migrations.map(({ name }) => ({ name, status: 'pending' })));
     assert.deepEqual(await tables(schema), []);
   });
 });
 
 test('fresh migration creates the tables and repeating it preserves existing records', async () => {
   await withSchema(async (schema) => {
-    assert.deepEqual(await migrate(client, { schema }), [migrations[0].name]);
+    assert.deepEqual(await migrate(client, { schema }), migrations.map(({ name }) => name));
     assert.deepEqual(await tables(schema), expectedTables);
     await client.query(`INSERT INTO ${schemaIdentifier(schema)}.verification_records (entered_code, result) VALUES ('UNKNOWN-TEST', 'unregistered')`);
     assert.deepEqual(await migrate(client, { schema }), []);
     const saved = await client.query(`SELECT entered_code FROM ${schemaIdentifier(schema)}.verification_records`);
     assert.equal(saved.rows[0].entered_code, 'UNKNOWN-TEST');
-    assert.deepEqual(await migrationStatus(client, { schema }), [{ name: migrations[0].name, status: 'applied' }]);
+    assert.deepEqual(await migrationStatus(client, { schema }), migrations.map(({ name }) => ({ name, status: 'applied' })));
   });
 });
 
@@ -63,7 +63,7 @@ test('an edited applied migration is refused', async () => {
 test('a failing migration rolls back all pending DDL and history', async () => {
   await withSchema(async (schema) => {
     const sql = 'CREATE TABLE temporary_probe (id INTEGER); SELECT * FROM nonexistent_migration_probe;';
-    const bad = { version: 2, name: '002_failure.sql', sql, checksum: createHash('sha256').update(sql).digest('hex') };
+    const bad = { version: migrations.at(-1).version + 1, name: '999_failure.sql', sql, checksum: createHash('sha256').update(sql).digest('hex') };
     await assert.rejects(migrate(client, { schema, migrations: [...migrations, bad] }), { code: '42P01' });
     assert.deepEqual(await tables(schema), []);
   });
@@ -74,7 +74,7 @@ test('concurrent migration commands apply each version only once', async () => {
     const other = await connectDatabase();
     try {
       const results = await Promise.all([migrate(client, { schema }), migrate(other, { schema })]);
-      assert.equal(results.flat().length, 1);
+      assert.equal(results.flat().length, migrations.length);
       assert.deepEqual(await tables(schema), expectedTables);
     } finally { await other.end(); }
   });

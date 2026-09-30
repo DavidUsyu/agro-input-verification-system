@@ -24,6 +24,9 @@
     "db:migrate": "node backend/database/migrate.mjs",
     "db:status": "node backend/database/migrate.mjs --status",
     "db:test": "node --test backend/database/database.test.mjs",
+    "auth:test": "node --test backend/test/auth.test.mjs",
+    "auth:pages:test": "node --test scripts/auth-pages.test.mjs",
+    "admin:create": "npm run build --workspace backend && node backend/scripts/create-admin.mjs",
     "db:stop": "docker compose stop",
     "db:logs": "docker compose logs --tail 50 postgres"
   },

@@ -25,5 +25,13 @@ export function validateEnvironment(values: Record<string, unknown>) {
     throw new Error('Set a valid PostgreSQL DATABASE_URL in backend/.env. Run npm run setup first.');
   }
 
-  return { ...values, PORT: port, HOST: String(values.HOST ?? '127.0.0.1'), FRONTEND_ORIGIN: origin, DATABASE_URL: databaseUrl };
+  const lifetime = Number(values.SESSION_TTL_HOURS ?? 12);
+  if (!Number.isInteger(lifetime) || lifetime < 1 || lifetime > 168) throw new Error('SESSION_TTL_HOURS must be between 1 and 168.');
+  const secure = String(values.SESSION_COOKIE_SECURE ?? (values.NODE_ENV === 'production' ? 'true' : 'false'));
+  if (!['true', 'false'].includes(secure)) throw new Error('SESSION_COOKIE_SECURE must be true or false.');
+  if (values.NODE_ENV === 'production' && (secure !== 'true' || frontendUrl.protocol !== 'https:')) {
+    throw new Error('Production authentication requires HTTPS FRONTEND_ORIGIN and secure cookies.');
+  }
+  return { ...values, PORT: port, HOST: String(values.HOST ?? '127.0.0.1'), FRONTEND_ORIGIN: origin, DATABASE_URL: databaseUrl,
+    SESSION_TTL_HOURS: lifetime, SESSION_COOKIE_SECURE: secure === 'true' };
 }

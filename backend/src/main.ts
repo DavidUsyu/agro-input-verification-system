@@ -3,13 +3,13 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { configureApp } from './config/configure-app';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
   const config = app.get(ConfigService);
-  app.setGlobalPrefix('api');
-  app.enableCors({ origin: config.getOrThrow<string>('FRONTEND_ORIGIN'), credentials: true });
-  app.enableShutdownHooks();
+  configureApp(app);
   const port = config.getOrThrow<number>('PORT');
   const host = config.getOrThrow<string>('HOST');
   await app.listen(port, host);

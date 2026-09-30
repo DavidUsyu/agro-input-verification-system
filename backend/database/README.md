@@ -1,6 +1,6 @@
 # Database schema and migrations
 
-This directory implements the six core tables from the project diagram for the first milestone. It uses the existing PostgreSQL driver; no additional ORM or migration dependency is required.
+This directory implements the six core tables from the project diagram and the authentication session table. It uses the existing PostgreSQL driver; no additional ORM or migration dependency is required.
 
 ## Commands
 
@@ -28,6 +28,7 @@ Add subsequent changes as `002_descriptive_name.sql`, then `003_...`, and so on.
 | `products` | Name, seed/fertilizer category, manufacturer, optional registration reference and description, status, administrator creator and creation timestamp. |
 | `product_codes` | Product reference, unique code, batch, optional manufacture date, required expiry date, stored status and creation timestamp. |
 | `verification_records` | Optional farmer, optional registered code, submitted input, result, channel, optional county and verification timestamp. |
+| `auth_sessions` | Digest of an opaque session token, user reference, creation time and expiry. User deletion also removes its sessions. |
 
 The application tables are initially empty. There are no seeded accounts, default passwords or claimed regulatory records. `schema_migrations` is a separate infrastructure table, not a business entity.
 
@@ -95,6 +96,6 @@ Tests cover repeatable and concurrent migrations, checksum mismatch, atomic fail
 
 ## Deferred scope
 
-`suspicious_reports` and `ussd_sessions` will be added with their respective modules. Dashboard summaries will be derived from actual records when monitoring is implemented; no summary table is needed for this milestone. This step adds database structure, not registration, login or verification endpoints.
+`suspicious_reports` and `ussd_sessions` will be added with their respective modules. Dashboard summaries will be derived from actual records when monitoring is implemented; no summary table is needed for this milestone. Authentication now uses migration `002_auth_sessions.sql`; see the [authentication guide](../src/auth/README.md). Product management and verification endpoints remain for later development.
 
 References: [PostgreSQL constraints](https://www.postgresql.org/docs/18/ddl-constraints.html), [generated columns](https://www.postgresql.org/docs/18/ddl-generated-columns.html), and [node-postgres transactions](https://node-postgres.com/features/transactions).

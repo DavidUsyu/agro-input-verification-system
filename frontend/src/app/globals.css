@@ -55,3 +55,41 @@ h1 em { font-family: Georgia, serif; font-weight: 400; color: #537b35; }
 }
 @media (max-width: 380px) { .stage-label { font-size: 10px; padding: 4px 8px; } .brand { font-size: 18px; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+.account-nav { display: flex; align-items: center; gap: 18px; font-size: 14px; }
+.account-nav a { text-decoration: none; }
+.nav-register { border: 1px solid #bac9ac; padding: 8px 14px; border-radius: 6px; }
+.auth-page { padding: 52px 24px; }
+.auth-card { max-width: 580px; margin: auto; background: #fffef8; border: 1px solid var(--line); border-radius: 12px; padding: 36px; }
+.auth-card h1 { font-size: clamp(28px, 4vw, 38px); margin-block: 14px 18px; }
+.auth-intro, .auth-switch { color: var(--muted); font-size: 14px; }
+.field { display: flex; flex-wrap: wrap; gap: 6px; font-size: 14px; font-weight: 600; margin-top: 18px; }
+.field input { display: block; width: 100%; min-width: 0; border: 1px solid #aebca6; border-radius: 6px; background: white; padding: 12px; font: inherit; font-weight: 400; color: var(--ink); }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.field-grid .field { margin-top: 0; }
+.field-hint { font-size: 12px; color: var(--muted); margin: 12px 0 8px; }
+.optional { font-weight: 400; color: var(--muted); }
+.show-password { display: flex; gap: 8px; align-items: center; font-size: 13px; margin-block: 20px; }
+.show-password input { width: 18px; height: 18px; accent-color: var(--ink); }
+.form-error { color: #812922; background: #fff0e9; border: 1px solid #e7bbae; border-radius: 6px; padding: 12px; font-size: 14px; }
+.auth-submit { width: 100%; }
+.auth-switch { margin-top: 24px; margin-bottom: 0; text-align: center; }
+.auth-switch a { font-weight: 600; color: var(--ink); }
+.account-page { padding: 52px 40px; min-height: 70vh; }
+.account-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 32px; }
+.account-heading h1 { font-size: clamp(28px, 4vw, 42px); overflow-wrap: anywhere; }
+.account-card { background: #fffef8; border: 1px solid var(--line); border-radius: 10px; padding: 28px; margin-bottom: 24px; }
+.account-card h2 { font-size: 22px; }
+.account-card .service-list { margin: 0; max-width: none; }
+.account-card dd { overflow-wrap: anywhere; text-align: right; }
+.upcoming { background: #edf1e0; }
+.button-secondary { background: transparent; color: var(--ink); border: 1px solid #aebca6; white-space: nowrap; }
+.button-secondary:hover { background: #e4ebd8; }
+@media (max-width: 600px) {
+  .site-header { flex-wrap: wrap; }
+  .account-nav { font-size: 13px; gap: 14px; }
+  .auth-card { padding: 24px; }
+  .field-grid { grid-template-columns: 1fr; }
+  .account-page { padding: 32px 24px; }
+  .account-heading { flex-direction: column; }
+  .account-card { padding: 20px; }
+}

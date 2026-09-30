@@ -4,7 +4,7 @@ A proposed web-based system that helps smallholder farmers in Kenya check seed a
 
 ## Project status
 
-The development foundation and core database schema are implemented: a Next.js frontend, NestJS API, PostgreSQL connection, versioned database migrations, environment setup, and build checks. Farmer authentication, product management and verification are the next implementation stages; they are not available yet.
+The development foundation, core database and authentication are implemented. Farmers can register, sign in with email or phone, and sign out. Administrators use the same login page and have a separate protected area. Product management and product-code verification are the next milestones.
 
 ## Technology and structure
 
@@ -22,7 +22,7 @@ compose.yaml           Local PostgreSQL service
 .github/workflows/     Automated lint, type, build and connection checks
 ```
 
-The database contains six core application tables: `users`, `farmers`, `administrators`, `products`, `product_codes` and `verification_records`. The migration adds their relationships, validation constraints and indexes. Tables start empty; no accounts or product data are seeded. See the [database guide](backend/database/README.md) for the schema, account transaction pattern and migration rules.
+The database contains six core application tables: `users`, `farmers`, `administrators`, `products`, `product_codes` and `verification_records`, plus `auth_sessions` for revocable sign-in sessions. Migrations add their relationships, validation constraints and indexes. No accounts or product data are automatically seeded. See the [database guide](backend/database/README.md) and [authentication guide](backend/src/auth/README.md).
 
 ## First implementation milestone
 
@@ -84,6 +84,10 @@ Open:
 | Address | Purpose |
 | --- | --- |
 | http://localhost:3000 | Starter homepage |
+| http://localhost:3000/register | Create a farmer account |
+| http://localhost:3000/login | Shared farmer/administrator sign-in |
+| http://localhost:3000/farmer | Protected farmer account |
+| http://localhost:3000/admin | Protected administrator area |
 | http://localhost:3000/status | Click **Check connection** to test browser-to-API and database connectivity |
 | http://localhost:3001/api/health | API liveness; works even if PostgreSQL is stopped |
 | http://localhost:3001/api/health/ready | Runs a database query; returns HTTP 503 if PostgreSQL is unavailable |
@@ -92,13 +96,15 @@ The local database listens on `127.0.0.1:5433`, leaving the usual PostgreSQL por
 
 Use Ctrl+C to stop the development servers. Run `npm run db:stop` to stop PostgreSQL without deleting its stored data. Restart it with `npm run db:up`.
 
+To create an administrator, run `npm run admin:create` in an interactive terminal and enter the requested details. Password entry is hidden. There is no public administrator registration or default administrator password. See the [authentication guide](backend/src/auth/README.md) for the full flow.
+
 ### Configuration
 
 | File | Settings |
 | --- | --- |
 | `.env` | Docker database user, password, database name and host port |
-| `backend/.env` | `DATABASE_URL`, `PORT`, `HOST` and the permitted `FRONTEND_ORIGIN` |
-| `frontend/.env.local` | `NEXT_PUBLIC_API_URL` (public API address; never put credentials here) |
+| `backend/.env` | `DATABASE_URL`, `PORT`, `HOST`, permitted `FRONTEND_ORIGIN`, optional `SESSION_TTL_HOURS` and `SESSION_COOKIE_SECURE` |
+| `frontend/.env.local` | `NEXT_PUBLIC_API_URL` for service status, and optional server-only `API_INTERNAL_URL` for authentication |
 
 If you already have PostgreSQL, create a dedicated database, run `npm run setup`, and update `backend/.env` with its connection URL. Skip `npm run db:up`. Passwords with special characters must be URL-encoded in `DATABASE_URL`.
 
@@ -106,17 +112,25 @@ Changing `.env` after the Docker volume has been initialized does not change the
 
 Frontend public environment settings are incorporated into the build; rebuild after changing them. When changing the frontend port or browser hostname, update `FRONTEND_ORIGIN` in `backend/.env` to match the exact browser origin.
 
+Existing environment files continue working with local defaults: a 12-hour session lifetime, non-secure cookies on local HTTP, and `API_INTERNAL_URL=http://127.0.0.1:3001/api`. Production requires HTTPS and secure cookies. Environment examples contain the new settings; `npm run setup` continues to preserve existing files.
+
 ### Checks and production builds
 
 ```sh
 npm run check
 npm run db:test
+npm run auth:test
+npm run auth:pages:test
 npm run smoke
 ```
 
 `check` runs ESLint, TypeScript checks and production builds for both applications. `smoke` requires those builds and a running database. It temporarily starts the built applications on ports 3100 and 3101, checks the homepage, status page, API response, CORS and database readiness, then stops its servers. It does not test browser interactions or implement business-feature tests.
 
 `db:migrate` applies pending migrations transactionally and is safe to repeat. `db:status` shows applied and pending migrations. `db:test` tests migrations and database constraints in temporary schemas, without resetting the application tables. These database commands require PostgreSQL to be running. The API readiness endpoint checks connectivity only; use `db:status` to check migration state.
+
+`auth:test` starts the built backend and tests actual authentication requests against a temporary database schema. Run `npm run check` or `npm run build --workspace backend` first. GitHub Actions runs these tests after building.
+
+`auth:pages:test` checks the built frontend against a temporary simulated authentication service. It verifies that login and registration remain visible during service outages, expired sessions return to login, and valid sessions redirect to the correct account area. Build the frontend first. It does not change application accounts or stop the development servers.
 
 To run the built applications yourself, use separate terminals:
 

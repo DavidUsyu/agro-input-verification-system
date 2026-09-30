@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { parseEnv } from 'node:util';
 import pg from 'pg';
 
-export async function connectDatabase() {
+export async function databaseUrl() {
   let local = {};
   try {
     local = parseEnv(await readFile(new URL('../.env', import.meta.url), 'utf8'));
@@ -11,6 +11,11 @@ export async function connectDatabase() {
   }
   const connectionString = process.env.DATABASE_URL ?? local.DATABASE_URL;
   if (!connectionString) throw new Error('DATABASE_URL is missing. Run npm run setup or set DATABASE_URL.');
+  return connectionString;
+}
+
+export async function connectDatabase() {
+  const connectionString = await databaseUrl();
   const client = new pg.Client({ connectionString, connectionTimeoutMillis: 5000 });
   try {
     await client.connect();

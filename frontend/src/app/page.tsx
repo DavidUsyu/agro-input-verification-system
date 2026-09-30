@@ -13,7 +13,7 @@ export default function HomePage() {
           <h1>Know more about<br />what you <em>grow with.</em></h1>
           <p className="hero-description">A simpler way to check seed and fertilizer product records before you buy or plant.</p>
           <a className="button" href="#project">Explore the project <span aria-hidden="true">→</span></a>
-          <p className="development-note">The platform is being built. Product verification and accounts are not available yet.</p>
+          <p className="development-note">Farmer accounts are available. Product verification is the next milestone.</p>
         </div>
         <aside className="purpose-panel" aria-label="Project focus">
           <p className="eyebrow">From the package to the record</p>
