@@ -4,7 +4,7 @@ A proposed web-based system that helps smallholder farmers in Kenya check seed a
 
 ## Project status
 
-The development foundation, core database and authentication are implemented. Farmers can register, sign in with email or phone, and sign out. Administrators use the same login page and have a separate protected area. Product management and product-code verification are the next milestones.
+The agreed first implementation milestone is complete: farmer authentication, administrator authentication, product/code management, farmer and guest product-code verification, personal farmer history, and an administrator view of all verification records. The end-to-end flow saves verification results and the product details used for each check. See the [30% demonstration guide](docs/30-percent-demo.md).
 
 ## Technology and structure
 
@@ -39,9 +39,9 @@ The university assessment rubric will determine whether this scope meets the 30%
 
 ## Verification behavior
 
-The system will validate submitted codes, look up stored records, check product status and expiry, save verification results, and display relevant product details.
+The system validates submitted codes, looks up stored records, checks product/code status and expiry, saves verification results, and displays relevant product and batch details.
 
-Initial outcomes will include verified against stored records, expired, unregistered, and explicitly flagged suspicious records. Missing or malformed codes will receive validation messages.
+Outcomes include a match against an active record, expired, inactive, code not found, invalid code, and explicitly flagged records. Suspicious flags take precedence over inactivation and expiry. Expiry is evaluated by the Kenyan calendar date; a code expiring today remains current until the day ends. Future manufacture dates cannot produce a positive match. See the [verification guide](backend/src/verification/README.md).
 
 A matching code does not establish the authenticity of physical contents. An unknown code means it was not found in the database; it does not establish that a product is counterfeit. Demonstration data will be clearly identified.
 
@@ -75,6 +75,8 @@ npm run db:migrate
 npm run dev
 ```
 
+After dependencies are installed, `npm run local` performs environment setup, starts Docker Desktop if needed, starts PostgreSQL, applies pending migrations, and launches both application servers. On PowerShell, use `npm.cmd run local` and keep that terminal running. Existing environment files and stored records are preserved.
+
 On Windows PowerShell, use `npm.cmd` in place of `npm` if script execution policy blocks `npm.ps1`.
 
 `npm run setup` creates the ignored root `.env`, `backend/.env` and `frontend/.env.local`. It generates a random local database password and keeps existing files unchanged. The `.env.example` files document the available settings and contain no real credentials.
@@ -88,6 +90,10 @@ Open:
 | http://localhost:3000/login | Shared farmer/administrator sign-in |
 | http://localhost:3000/farmer | Protected farmer account |
 | http://localhost:3000/admin | Protected administrator area |
+| http://localhost:3000/admin/products | Administrator product catalogue and verification-code management |
+| http://localhost:3000/verify | Check a product code as a farmer, administrator or guest |
+| http://localhost:3000/farmer/history | Only the signed-in farmer's verification history |
+| http://localhost:3000/admin/verifications | Administrator view of all checks |
 | http://localhost:3000/status | Click **Check connection** to test browser-to-API and database connectivity |
 | http://localhost:3001/api/health | API liveness; works even if PostgreSQL is stopped |
 | http://localhost:3001/api/health/ready | Runs a database query; returns HTTP 503 if PostgreSQL is unavailable |
@@ -97,6 +103,12 @@ The local database listens on `127.0.0.1:5433`, leaving the usual PostgreSQL por
 Use Ctrl+C to stop the development servers. Run `npm run db:stop` to stop PostgreSQL without deleting its stored data. Restart it with `npm run db:up`.
 
 To create an administrator, run `npm run admin:create` in an interactive terminal and enter the requested details. Password entry is hidden. There is no public administrator registration or default administrator password. See the [authentication guide](backend/src/auth/README.md) for the full flow.
+
+After signing in as an administrator, choose **Manage products**. Select **Add product**, enter the name, category and manufacturer, then save. The saved product shows a **Verification codes** section: choose **New code** and supply its unique code, batch number and expiry date. Use **Manage** in the catalogue to edit product details or **Edit** beside a code to update its batch, dates or status. Search and filter both lists; results are paginated in groups of 20.
+
+Records use Active, Inactive or Suspicious status. Retire records with Inactive; records are retained to preserve verification history. Code values are fixed after creation and unique across all products regardless of letter case. Dates must be valid and expiry cannot precede manufacture. There is no automatic sample data or regulatory lookup. See the [product management guide](backend/src/products/README.md) for the API and scope.
+
+For an optional demonstration, create an administrator first, then run `npm run demo:seed`. This adds two clearly labeled DEMO products and five sample codes, without changing existing products or creating default accounts. Running it again preserves existing demo records. The [demonstration guide](docs/30-percent-demo.md) lists the sample codes and expected results.
 
 ### Configuration
 
@@ -121,6 +133,8 @@ npm run check
 npm run db:test
 npm run auth:test
 npm run auth:pages:test
+npm run products:test
+npm run verification:test
 npm run smoke
 ```
 
@@ -131,6 +145,10 @@ npm run smoke
 `auth:test` starts the built backend and tests actual authentication requests against a temporary database schema. Run `npm run check` or `npm run build --workspace backend` first. GitHub Actions runs these tests after building.
 
 `auth:pages:test` checks the built frontend against a temporary simulated authentication service. It verifies that login and registration remain visible during service outages, expired sessions return to login, and valid sessions redirect to the correct account area. Build the frontend first. It does not change application accounts or stop the development servers.
+
+`products:test` checks the built backend with real HTTP requests and an isolated PostgreSQL schema. It covers administrator permissions, product/code creation and editing, origin checks, validation, duplicate conflicts, history preservation, searching and pagination. Build the backend first. The test removes its own temporary schema when finished.
+
+`verification:test` exercises the product-to-verification flow against an isolated schema, including outcome precedence, expiry boundaries, immutable snapshots, farmer history isolation, administrator filters, guest checks, rejected sessions, origin checks, rate limits and simulated database failures. Build the backend first.
 
 To run the built applications yourself, use separate terminals:
 

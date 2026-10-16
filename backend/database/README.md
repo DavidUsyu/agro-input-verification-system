@@ -27,7 +27,7 @@ Add subsequent changes as `002_descriptive_name.sql`, then `003_...`, and so on.
 | `administrators` | Shared `user_id`, unique staff number and permission level. |
 | `products` | Name, seed/fertilizer category, manufacturer, optional registration reference and description, status, administrator creator and creation timestamp. |
 | `product_codes` | Product reference, unique code, batch, optional manufacture date, required expiry date, stored status and creation timestamp. |
-| `verification_records` | Optional farmer, optional registered code, submitted input, result, channel, optional county and verification timestamp. |
+| `verification_records` | Optional farmer, optional registered code, submitted input, result/reason, saved product snapshot, account type, channel, optional county and verification timestamp. |
 | `auth_sessions` | Digest of an opaque session token, user reference, creation time and expiry. User deletion also removes its sessions. |
 
 The application tables are initially empty. There are no seeded accounts, default passwords or claimed regulatory records. `schema_migrations` is a separate infrastructure table, not a business entity.
@@ -48,7 +48,7 @@ Exactly one of the two account profiles must exist, according to `users.role`. T
 
 The original diagram requires a separate farmer or administrator row with the same primary key as its user, and exactly one matching profile per account. Two internal generated columns on `users` (`farmer_profile_id` and `administrator_profile_id`) and deferred foreign keys enforce that rule in PostgreSQL, including concurrent writes. These are implementation helpers, not additional user data; never supply their values or expose them in an account API.
 
-Create the user and matching profile in the **same transaction and on the same database client**. The profile requirement is checked at commit. A user insert by itself will fail when committed. For example, a future authentication service will use this pattern after validating input and hashing the password:
+Create the user and matching profile in the **same transaction and on the same database client**. The profile requirement is checked at commit. A user insert by itself will fail when committed. The authentication service uses this pattern after validating input and hashing the password:
 
 ```js
 await client.query('BEGIN');
@@ -74,11 +74,11 @@ Use explicit column lists when selecting users, especially for API responses. Do
 ## Validation and storage rules
 
 - Accounts require an email address or a phone number, or both. Email uniqueness ignores letter case. Normalize phone numbers to E.164 before writing, for example `+254700000001`; uniqueness applies to the normalized value. Empty names, passwords and supplied contact values are rejected. Password hashing itself belongs to the authentication service; a text column cannot establish that its contents are a secure hash.
-- Account statuses are `active`, `inactive` and `suspended`. Account roles are `farmer` and `administrator`. Administrator permission levels are `standard` and `super_admin`; authentication and permission enforcement are still to be implemented.
+- Account statuses are `active`, `inactive` and `suspended`. Account roles are `farmer` and `administrator`. Administrator permission levels are `standard` and `super_admin`; current endpoint access uses the account role, with active sessions checked on every protected request.
 - Products are limited to `seed` and `fertilizer`, and only an administrator profile can be recorded as their creator. A stored registration number is a reference, not evidence of approval by a regulator.
 - Product and code statuses are `active`, `inactive` and `suspicious`. Codes are unique regardless of case and cannot contain whitespace. Future lookup queries should use `upper(code_value) = upper($1)` so they use the unique index. The entered string in verification history is retained separately.
-- Expiry cannot precede manufacture when the manufacture date is known. Expired products remain valid historical data. The future verification service will derive the `expired` outcome from the date instead of storing an expiry flag that becomes stale.
-- Verification results are `verified`, `expired`, `suspicious`, `unregistered`, `invalid` and `reported`. `reported` is reserved for the reporting milestone. `web` and `ussd` are accepted channels; this does not implement USSD access.
+- Expiry cannot precede manufacture when the manufacture date is known. Expired products remain valid historical data. The verification service derives the `expired` outcome from the Kenyan calendar date instead of storing an expiry flag that becomes stale.
+- Verification results are `verified`, `expired`, `inactive`, `suspicious`, `unregistered`, `invalid` and `reported`. `reported` is reserved for the reporting milestone. `web` and `ussd` are accepted channels; this does not implement USSD access.
 - An unknown or invalid code has no `product_code_id`. The other outcomes require a registered code reference. Invalid input may be empty; non-invalid input must contain a value. Inputs are limited to the diagram's 80-character field; the API must reject overlong input before insertion.
 - `farmer_id` is nullable so guests can verify products. All event timestamps use `TIMESTAMPTZ` and default to the database transaction's current time. Verification results are historical snapshots, not automatically changed when a product is later edited.
 
@@ -96,6 +96,6 @@ Tests cover repeatable and concurrent migrations, checksum mismatch, atomic fail
 
 ## Deferred scope
 
-`suspicious_reports` and `ussd_sessions` will be added with their respective modules. Dashboard summaries will be derived from actual records when monitoring is implemented; no summary table is needed for this milestone. Authentication now uses migration `002_auth_sessions.sql`; see the [authentication guide](../src/auth/README.md). Product management and verification endpoints remain for later development.
+`suspicious_reports` and `ussd_sessions` will be added with their respective modules. Dashboard summaries will be derived from actual records when monitoring is implemented; no summary table is needed for this milestone. Authentication uses migration `002_auth_sessions.sql`; see the [authentication guide](../src/auth/README.md). Migration `003_verification_history.sql` adds inactive outcomes and immutable product snapshots without rewriting older results. Product management and verification/history endpoints are implemented; see the [verification guide](../src/verification/README.md).
 
 References: [PostgreSQL constraints](https://www.postgresql.org/docs/18/ddl-constraints.html), [generated columns](https://www.postgresql.org/docs/18/ddl-generated-columns.html), and [node-postgres transactions](https://node-postgres.com/features/transactions).

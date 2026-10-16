@@ -7,10 +7,14 @@ import { APP_GUARD } from '@nestjs/core';
 import { AuthController } from './auth/auth.controller';
 import { AuthService } from './auth/auth.service';
 import { AuthMutationGuard, SessionGuard } from './auth/auth.guards';
+import { ProductsController, ProductMutationGuard } from './products/products.controller';
+import { ProductsService } from './products/products.service';
+import { VerificationController, VerificationGuard } from './verification/verification.controller';
+import { VerificationService } from './verification/verification.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment })],
-  controllers: [HealthController, AuthController],
-  providers: [DatabaseService, AuthService, AuthMutationGuard, { provide: APP_GUARD, useClass: SessionGuard }],
+  controllers: [HealthController, AuthController, ProductsController, VerificationController],
+  providers: [DatabaseService, AuthService, AuthMutationGuard, ProductsService, ProductMutationGuard, VerificationService, VerificationGuard, { provide: APP_GUARD, useClass: SessionGuard }],
 })
 export class AppModule {}

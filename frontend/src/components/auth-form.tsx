@@ -43,7 +43,7 @@ export function AuthForm({ mode, serviceUnavailable = false }: { mode: 'login' |
     <div className="auth-card">
       <p className="eyebrow">{register ? 'Your farmer account' : 'Welcome back'}</p>
       <h1>{register ? 'Create your account' : 'Sign in to AgroVerify'}</h1>
-      <p className="auth-intro">{register ? 'Keep your account ready for product checks and your personal verification history.' : 'Farmers and administrators use the same sign-in page.'}</p>
+      <p className="auth-intro">{register ? 'Save your product checks and review your personal verification history.' : 'Farmers and administrators use the same sign-in page.'}</p>
       <form onSubmit={submit} aria-busy={busy}>
         {register ? <>
           <label className="field">Full name<input name="fullName" autoComplete="name" required maxLength={120} /></label>

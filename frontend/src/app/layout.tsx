@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const user = await currentUser().catch(() => null);
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body>
         <a className="skip-link" href="#main">Skip to content</a>
         <header className="site-header">
@@ -20,7 +20,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <span className="brand-mark" aria-hidden="true">AV</span>
             <span>AgroVerify<span className="brand-caption">Seeds &amp; fertilizers</span></span>
           </Link>
-          <nav className="account-nav" aria-label="Account">{user ? <Link href={accountPath(user.role)}>My account</Link> : <><Link href="/login">Sign in</Link><Link href="/register" className="nav-register">Create account</Link></>}</nav>
+          <nav className="account-nav" aria-label="Account"><Link href="/verify">Verify code</Link>{user ? <>{user.role === 'administrator' && <Link href="/admin/products">Products</Link>}<Link href={user.role === 'administrator' ? '/admin/verifications' : '/farmer/history'}>History</Link><Link href={accountPath(user.role)}>My account</Link></> : <><Link href="/login">Sign in</Link><Link href="/register" className="nav-register">Create account</Link></>}</nav>
         </header>
         {children}
         <footer className="site-footer">

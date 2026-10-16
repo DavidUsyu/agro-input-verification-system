@@ -12,7 +12,8 @@ export function SessionWatch() {
         if (response.status === 401) { window.location.replace('/login'); return; }
         if (response.ok) {
           const { user } = await response.json();
-          if (window.location.pathname !== accountPath(user.role)) window.location.replace(accountPath(user.role));
+          const home = accountPath(user.role);
+          if (window.location.pathname !== home && !window.location.pathname.startsWith(`${home}/`)) window.location.replace(home);
         }
       } catch { /* An interrupted connection does not sign the user out. */ }
     }

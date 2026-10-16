@@ -40,4 +40,6 @@ jobs:
       - run: npm run check
       - run: npm run auth:test
       - run: npm run auth:pages:test
+      - run: npm run products:test
+      - run: npm run verification:test
       - run: npm run smoke
