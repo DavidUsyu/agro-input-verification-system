@@ -6,7 +6,7 @@ import { loadMigrations, migrate, migrationStatus, schemaIdentifier } from './mi
 
 let client;
 let migrations;
-const expectedTables = ['administrators', 'auth_sessions', 'farmers', 'product_codes', 'products', 'schema_migrations', 'users', 'verification_records'];
+const expectedTables = ['administrators', 'auth_sessions', 'distribution_counties', 'farmers', 'product_codes', 'product_reports', 'products', 'report_reviews', 'schema_migrations', 'users', 'verification_records'];
 
 before(async () => {
   client = await connectDatabase();

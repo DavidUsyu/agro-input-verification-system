@@ -18,9 +18,9 @@ export async function seedDemo(client) {
           if (existing.product_id !== product.id) throw new Error(`Demo code ${code} already belongs to another product. No records were changed.`);
           continue;
         }
-        await client.query(`INSERT INTO product_codes (product_id,code_value,batch_number,manufacture_date,expiry_date,verification_status)
+        await client.query(`INSERT INTO product_codes (product_id,code_value,batch_number,manufacture_date,expiry_date,verification_status,distribution_county)
           VALUES ($1,$2,'DEMO-BATCH',(CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nairobi')::date - 730,
-            (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nairobi')::date + $3::integer,$4)`,[product.id,code,expired ? -1 : 365,status]);
+            (CURRENT_TIMESTAMP AT TIME ZONE 'Africa/Nairobi')::date + $3::integer,$4,'Nakuru')`,[product.id,code,expired ? -1 : 365,status]);
       }
     }
     await client.query('COMMIT');

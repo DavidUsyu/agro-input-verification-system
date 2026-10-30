@@ -8,7 +8,7 @@ const noStore = { 'Cache-Control': 'no-store' };
 async function forward(request: NextRequest, context: { params: Promise<{ path?: string[] }> }) {
   const path = ((await context.params).path ?? []).join('/');
   const allowed = request.method === 'GET' ? /^(?:[1-9]\d*(?:\/codes)?)?$/
-    : request.method === 'POST' ? /^(?:[1-9]\d*\/codes)?$/ : /^[1-9]\d*(?:\/codes\/[1-9]\d*)?$/;
+    : request.method === 'POST' ? /^(?:[1-9]\d*\/codes(?:\/bulk)?)?$/ : /^[1-9]\d*(?:\/codes\/[1-9]\d*)?$/;
   if (!allowed.test(path)) return Response.json({ message: 'Not found.' }, { status: 404, headers: noStore });
   const headers: Record<string, string> = {};
   const token = request.cookies.get(SESSION_COOKIE)?.value;

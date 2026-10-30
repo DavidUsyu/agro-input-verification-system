@@ -32,8 +32,8 @@ The seed command creates DEMO products only and preserves existing records and a
 
 1. Sign in as an administrator at http://localhost:3000/login. Open **Manage products**.
 2. Create a seed or fertilizer product, giving its name and manufacturer. Save it.
-3. Add a unique verification code, batch number and expiry date. Update the product or code metadata and show that the change persists. Show Inactive/Suspicious status controls and duplicate-code validation.
-4. Sign out. Open **Verify code**, submit that code as a guest, and compare the saved product and batch details with the record. Demonstrate an unknown code.
+3. Choose **New code**, enter the number of packages (1–1,000), batch/date details and the intended distribution county, then select **Generate code**. Every package gets a different identifier while sharing the batch details. Copy or download the generated codes. The administrator cannot choose or rename an identifier. Edit one package's metadata and show that changes persist without changing the other packages. Show Inactive/Suspicious controls.
+4. Sign out. Open **Verify code**, enter that code as a guest, and allow current location. An accurate device reading in the assigned county allows an active, unexpired code to match. Compare the saved product/batch details. Denied, uncertain or mismatched location produces a generic review-required result; the detailed assessment is visible only to administrators. Demonstrate an unknown code.
 5. Create a farmer account with email or phone, then verify the code while signed in. Open **My verification history** and expand **View saved details**.
 6. Sign out and sign in as a different farmer. Their history contains only their checks; administrator product management is unavailable to them.
 7. Sign in as the administrator. Open **View verification records**. Show the guest and farmer checks and filter by outcome/account type/date.
@@ -41,7 +41,7 @@ The seed command creates DEMO products only and preserves existing records and a
 
 ## Optional example codes
 
-After `demo:seed`, use these on http://localhost:3000/verify:
+After `demo:seed`, use these on http://localhost:3000/verify. New demo fixtures are assigned to Nakuru; matching results require a current sufficiently accurate location in the assigned county. Administrators can edit the assignment for an approved demonstration elsewhere. Existing fixtures keep their previous metadata; assign a county if one is missing. These fixed sample identifiers are fixtures only; real package codes use random generation.
 
 | Code | Initial expected result |
 | --- | --- |
@@ -71,6 +71,8 @@ Tests use temporary schemas or simulated services. They do not reset application
 
 For a full browser rehearsal after building, run `npm.cmd run e2e:test`. It uses headless Microsoft Edge on Windows, ports 3210/9224 and a separate test schema. Set `BROWSER_EXECUTABLE` to another Chromium browser executable if needed. The test covers administrator creation of products/codes, verification outcomes, farmer history isolation, administrator history, snapshot preservation and expired-session recovery. Screenshots are saved under the ignored `.artifacts` directory. It does not add test users to the application schema.
 
+The browser rehearsal simulates Nakuru/Nairobi coordinates and denied/inaccurate readings. It verifies generic public results and administrator-only location details. Simulated locations test the software rules; they do not attest a real device's whereabouts. See [the location feature guide](location-verification.md) for setup and limits.
+
 ## Implemented scope
 
 | Requirement | Implementation |
@@ -83,4 +85,4 @@ For a full browser rehearsal after building, run `npm.cmd run e2e:test`. It uses
 | Farmer history | Only the signed-in farmer's records, with filters and saved details |
 | Administrator history | All verification records, with account/result/date filters |
 
-Later milestones include USSD, full dashboards, suspicious-product reporting, exports and deployment. Record deletion uses inactivation so references and history survive.
+Suspicious-product reporting, administrator review and the monitoring dashboard are now available beyond the original milestone; see [the reporting guide](product-reporting.md) and [dashboard guide](dashboard.md). Later milestones include USSD, exports and deployment. Record deletion uses inactivation so references and history survive.

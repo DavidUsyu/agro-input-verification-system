@@ -10,7 +10,7 @@ const schema = `agro_test_${randomUUID().replaceAll('-', '')}`;
 const origin = 'http://localhost:3000';
 const original = { ...process.env };
 const productInput = { name: 'Demo maize seed', category: 'seed', manufacturer: 'Test supplier', registrationNo: 'TEST-REF', description: 'Demonstration record only.', status: 'active' };
-const codeInput = { codeValue: 'demo-maize-001', batchNumber: 'BATCH-1', manufactureDate: '2026-03-08', expiryDate: '2028-03-08', status: 'active' };
+const codeInput = { batchNumber: 'BATCH-1', manufactureDate: '2026-03-08', expiryDate: '2028-03-08', status: 'active', distributionCounty: 'Nakuru' };
 let client, app, base, admin, farmer, product, code, schemaCreated = false;
 
 async function account(role) {
@@ -63,7 +63,7 @@ after(async () => {
 });
 
 test('all product and code endpoints require an active administrator session', async () => {
-  for (const [path, method, body] of [['','GET'], ['', 'POST', productInput], ['/1','GET'], ['/1','PUT',productInput], ['/1/codes','GET'], ['/1/codes','POST',codeInput], ['/1/codes/1','PUT',{}]]) {
+  for (const [path, method, body] of [['','GET'], ['', 'POST', productInput], ['/1','GET'], ['/1','PUT',productInput], ['/1/codes','GET'], ['/1/codes','POST',codeInput], ['/1/codes/bulk','POST',{...codeInput,quantity:3}], ['/1/codes/1','PUT',{}]]) {
     assert.equal((await request(path, { method, body, cookie: null })).status, 401);
     assert.equal((await request(path, { method, body, cookie: farmer.cookie })).status, 403);
   }
@@ -91,6 +91,7 @@ test('mutations require the exact application origin and JSON', async () => {
     assert.equal((await request('', { method: 'POST', body: productInput, requestOrigin })).status, 403);
     assert.equal((await request(`/${product.id}`, { method: 'PUT', body: productInput, requestOrigin })).status, 403);
     assert.equal((await request(`/${product.id}/codes`, { method: 'POST', body: codeInput, requestOrigin })).status, 403);
+    assert.equal((await request(`/${product.id}/codes/bulk`, { method: 'POST', body: { ...codeInput, quantity: 3 }, requestOrigin })).status, 403);
   }
   assert.equal((await request('', { method: 'POST', body: productInput, contentType: 'text/plain' })).status, 415);
 });
@@ -104,32 +105,113 @@ test('products can be edited and inactivated without deleting their attribution'
   assert.equal((await request(`/${product.id}`, { method: 'DELETE' })).status, 404);
 });
 
-test('code creation normalizes case and preserves calendar dates', async () => {
+test('code creation generates a package code and preserves calendar dates and county', async () => {
   const response = await request(`/${product.id}/codes`, { method: 'POST', body: codeInput });
   assert.equal(response.status, 201); code = await response.json();
-  assert.equal(code.codeValue, 'DEMO-MAIZE-001'); assert.equal(code.manufactureDate, '2026-03-08'); assert.equal(code.expiryDate, '2028-03-08');
+  assert.match(code.codeValue, /^AGV-(?:[0-9A-Z]{4}-){4}[0-9A-Z]{4}$/); assert.equal(code.manufactureDate, '2026-03-08'); assert.equal(code.expiryDate, '2028-03-08');
+  assert.equal(code.distributionCounty,'Nakuru');
   assert.equal(code.productId, product.id);
   assert.equal((await (await request(`/${product.id}`)).json()).codeCount, 1);
 });
 
-test('codes are globally unique regardless of case and concurrent submissions return a conflict', async () => {
+test('administrators cannot choose codes and concurrent generation creates distinct package codes', async () => {
   const other = await (await request('', { method: 'POST', body: { ...productInput, name: 'Other product' } })).json();
-  assert.equal((await request(`/${other.id}/codes`, { method: 'POST', body: { ...codeInput, codeValue: 'DEMO-MAIZE-001' } })).status, 409);
-  const responses = await Promise.all([1,2].map(() => request(`/${other.id}/codes`, { method: 'POST', body: { ...codeInput, codeValue: 'RACE-001' } })));
-  assert.deepEqual(responses.map((response) => response.status).sort(), [201,409]);
+  assert.equal((await request(`/${other.id}/codes`, { method: 'POST', body: { ...codeInput, codeValue: 'CHOSEN-CODE' } })).status, 400);
+  const responses = await Promise.all([1,2].map(() => request(`/${other.id}/codes`, { method: 'POST', body: codeInput })));
+  assert.deepEqual(responses.map((response) => response.status), [201,201]);
+  const generated = await Promise.all(responses.map(response=>response.json()));
+  assert.notEqual(generated[0].codeValue,generated[1].codeValue);
+});
+
+test('a generated collision is retried and repeated collisions fail without inserting', async () => {
+  const generator = require('../dist/products/code-generator.js'); const original = generator.generateProductCode;
+  let attempts = 0;
+  generator.generateProductCode = () => ++attempts === 1 ? code.codeValue : original();
+  try { assert.equal((await request(`/${product.id}/codes`,{method:'POST',body:codeInput})).status,201); assert.equal(attempts,2); }
+  finally { generator.generateProductCode = original; }
+  generator.generateProductCode = () => code.codeValue;
+  try { assert.equal((await request(`/${product.id}/codes`,{method:'POST',body:codeInput})).status,503); }
+  finally { generator.generateProductCode = original; }
+});
+
+test('bulk generation saves 1000 distinct packages with shared batch metadata and paginated access', async () => {
+  const other = await (await request('', { method: 'POST', body: { ...productInput, name: 'Bulk packages' } })).json();
+  const response = await request(`/${other.id}/codes/bulk`, { method: 'POST', body: { ...codeInput, quantity: 1000 } });
+  assert.equal(response.status, 201);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const result = await response.json();
+  assert.equal(result.total, 1000); assert.equal(result.items.length, 1000);
+  assert.equal(new Set(result.items.map(item => item.codeValue)).size, 1000);
+  for (const item of result.items) {
+    assert.match(item.codeValue, /^AGV-(?:[0-9A-Z]{4}-){4}[0-9A-Z]{4}$/);
+    assert.equal(item.productId, other.id);
+    for (const field of ['batchNumber', 'manufactureDate', 'expiryDate', 'status', 'distributionCounty']) assert.equal(item[field], codeInput[field]);
+  }
+  assert.equal((await (await request(`/${other.id}`)).json()).codeCount, 1000);
+  const lastPage = await (await request(`/${other.id}/codes?q=BATCH-1&page=50`)).json();
+  assert.equal(lastPage.total, 1000); assert.equal(lastPage.items.length, 20);
+  const one = await request(`/${other.id}/codes/bulk`, { method: 'POST', body: { ...codeInput, quantity: 1 } });
+  assert.equal(one.status, 201); assert.equal((await one.json()).items.length, 1);
+  const edited = await request(`/${other.id}/codes/${result.items[0].id}`, { method: 'PUT', body: { ...codeInput, status: 'suspicious' } });
+  assert.equal(edited.status, 200);
+  const unchanged = await (await request(`/${other.id}/codes?q=${encodeURIComponent(result.items[1].codeValue)}`)).json();
+  assert.equal(unchanged.items[0].status, 'active');
+  assert.equal(unchanged.items[0].batchNumber, codeInput.batchNumber);
+});
+
+test('bulk quantity and metadata validation reject bad requests without saving packages', async () => {
+  const beforeCount = (await client.query('SELECT count(*)::int AS n FROM product_codes')).rows[0].n;
+  for (const quantity of [undefined, null, '', '3', true, 0, -1, 1.5, 1001, 1e20]) {
+    assert.equal((await request(`/${product.id}/codes/bulk`, { method: 'POST', body: { ...codeInput, quantity } })).status, 400);
+  }
+  for (const changes of [{ codeValue: 'PICKED' }, { distributionCounty: null }, { expiryDate: '2020-01-01' }, { batchNumber: '' }]) {
+    assert.equal((await request(`/${product.id}/codes/bulk`, { method: 'POST', body: { ...codeInput, quantity: 3, ...changes } })).status, 400);
+  }
+  assert.equal((await request(`/${product.id}/codes/${code.id}`, { method: 'PUT', body: { ...codeInput, quantity: 3 } })).status, 400);
+  assert.equal((await client.query('SELECT count(*)::int AS n FROM product_codes')).rows[0].n, beforeCount);
+  assert.equal((await request('/999999/codes/bulk', { method: 'POST', body: { ...codeInput, quantity: 3 } })).status, 404);
+});
+
+test('bulk collisions retry only missing codes and failures roll back the entire request', async () => {
+  const generator = require('../dist/products/code-generator.js'); const originalGenerator = generator.generateProductCode;
+  const batchNumber = 'BULK-COLLISION';
+  let attempts = 0;
+  generator.generateProductCode = () => ++attempts === 1 ? code.codeValue : originalGenerator();
+  try {
+    const response = await request(`/${product.id}/codes/bulk`, { method: 'POST', body: { ...codeInput, batchNumber, quantity: 3 } });
+    assert.equal(response.status, 201); assert.equal((await response.json()).items.length, 3); assert.equal(attempts, 4);
+  } finally { generator.generateProductCode = originalGenerator; }
+  const countBefore = (await client.query('SELECT count(*)::int AS n FROM product_codes')).rows[0].n;
+  attempts = 0;
+  generator.generateProductCode = () => ++attempts === 1 ? originalGenerator() : code.codeValue;
+  try {
+    const response = await request(`/${product.id}/codes/bulk`, { method: 'POST', body: { ...codeInput, batchNumber: 'ROLLBACK-BATCH', quantity: 3 } });
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).message, /No codes were saved/);
+  } finally { generator.generateProductCode = originalGenerator; }
+  assert.equal((await client.query('SELECT count(*)::int AS n FROM product_codes')).rows[0].n, countBefore);
+  assert.equal((await client.query("SELECT count(*)::int AS n FROM product_codes WHERE batch_number='ROLLBACK-BATCH'")).rows[0].n, 0);
+});
+
+test('concurrent bulk requests for the same batch retain distinct package codes', async () => {
+  const responses = await Promise.all([1, 2].map(() => request(`/${product.id}/codes/bulk`, { method: 'POST', body: { ...codeInput, batchNumber: 'CONCURRENT-BULK', quantity: 25 } })));
+  assert.deepEqual(responses.map(response => response.status), [201, 201]);
+  const results = await Promise.all(responses.map(response => response.json()));
+  const codes = results.flatMap(result => result.items.map(item => item.codeValue));
+  assert.equal(codes.length, 50); assert.equal(new Set(codes).size, 50);
 });
 
 test('invalid code values and impossible or reversed dates fail validation', async () => {
-  for (const changes of [{ codeValue: 'has spaces' }, { codeValue: 'x'.repeat(81) }, { codeValue: '<script>' }, { batchNumber: '' }, { expiryDate: '2027-02-29' }, { expiryDate: '2026-13-01' }, { expiryDate: '2026-2-01' }, { expiryDate: '2020-01-01' }, { expiryDate: null }, { manufactureDate: '2026-04-31' }, { status: 'expired' }]) {
+  for (const changes of [{ codeValue: 'has spaces' }, { distributionCounty: '' }, { distributionCounty: 'Unknown' }, { distributionCounty: null }, { batchNumber: '' }, { expiryDate: '2027-02-29' }, { expiryDate: '2026-13-01' }, { expiryDate: '2026-2-01' }, { expiryDate: '2020-01-01' }, { expiryDate: null }, { manufactureDate: '2026-04-31' }, { status: 'expired' }]) {
     assert.equal((await request(`/${product.id}/codes`, { method: 'POST', body: { ...codeInput, ...changes } })).status, 400);
   }
-  const leap = await request(`/${product.id}/codes`, { method: 'POST', body: { ...codeInput, codeValue: 'LEAP-001', manufactureDate: '', expiryDate: '2028-02-29' } });
+  const leap = await request(`/${product.id}/codes`, { method: 'POST', body: { ...codeInput, manufactureDate: '', expiryDate: '2028-02-29' } });
   assert.equal(leap.status, 201); assert.equal((await leap.json()).manufactureDate, null);
 });
 
 test('code edits stay within their product and cannot replace the code value', async () => {
-  const { codeValue, ...edit } = codeInput;
-  assert.equal((await request(`/${product.id}/codes/${code.id}`, { method: 'PUT', body: { ...edit, codeValue } })).status, 400);
+  const edit = codeInput;
+  assert.equal((await request(`/${product.id}/codes/${code.id}`, { method: 'PUT', body: { ...edit, codeValue: 'REPLACEMENT' } })).status, 400);
   assert.equal((await request(`/999999/codes/${code.id}`, { method: 'PUT', body: edit })).status, 404);
   const response = await request(`/${product.id}/codes/${code.id}`, { method: 'PUT', body: { ...edit, batchNumber: 'CORRECTED-BATCH', status: 'suspicious' } });
   assert.equal(response.status, 200);
@@ -138,8 +220,7 @@ test('code edits stay within their product and cannot replace the code value', a
 
 test('status and metadata edits preserve saved verification history', async () => {
   const record = (await client.query("INSERT INTO verification_records (farmer_id,product_code_id,entered_code,result) VALUES ($1,$2,$3,'verified') RETURNING *", [farmer.id, code.id, code.codeValue])).rows[0];
-  const { codeValue: _unused, ...edit } = codeInput;
-  assert.equal((await request(`/${product.id}/codes/${code.id}`, { method: 'PUT', body: { ...edit, status: 'inactive' } })).status, 200);
+  assert.equal((await request(`/${product.id}/codes/${code.id}`, { method: 'PUT', body: { ...codeInput, batchNumber: 'CORRECTED-BATCH', status: 'inactive', distributionCounty: 'Nairobi' } })).status, 200);
   assert.deepEqual((await client.query('SELECT * FROM verification_records WHERE id=$1', [record.id])).rows[0], record);
 });
 
@@ -155,7 +236,7 @@ test('product search, category/status filters and pagination give stable bounded
 });
 
 test('code search and status filters return only codes from the selected product', async () => {
-  const response = await request(`/${product.id}/codes?q=demo&status=inactive`);
+  const response = await request(`/${product.id}/codes?q=CORRECTED&status=inactive`);
   assert.equal(response.status, 200);
   const result = await response.json(); assert.equal(result.total, 1); assert.equal(result.items[0].id, code.id);
   assert.equal((await (await request(`/${product.id}/codes?q=RACE`)).json()).total, 0);

@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
+import type { DeviceLocation } from '../location/county-location';
 
-export const outcomes = ['verified', 'expired', 'inactive', 'suspicious', 'unregistered', 'invalid', 'reported'] as const;
+export const outcomes = ['verified', 'expired', 'inactive', 'suspicious', 'unregistered', 'invalid', 'reported', 'review_required'] as const;
 export type VerificationOutcome = typeof outcomes[number];
 
 function object(value: unknown, fields: string[]): Record<string, unknown> {
@@ -10,14 +11,23 @@ function object(value: unknown, fields: string[]): Record<string, unknown> {
 }
 
 export function parseVerification(value: unknown) {
-  const data = object(value, ['code']);
+  const data = object(value, ['code', 'location']);
   if (data.code !== undefined && typeof data.code !== 'string') throw new BadRequestException('The product code must be text.');
   const enteredCode = ((data.code ?? '') as string).trim();
   if (enteredCode.length > 80 || [...enteredCode].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
     throw new BadRequestException('Enter a product code of up to 80 characters without control characters.');
   }
   // Keep submitted input in history; lookup uses an uppercase version.
-  return { enteredCode, normalizedCode: enteredCode.toUpperCase(), valid: /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(enteredCode) };
+  let location: DeviceLocation | null = null;
+  if (data.location !== undefined && data.location !== null) {
+    const raw = object(data.location, ['latitude', 'longitude', 'accuracy', 'timestamp']);
+    for (const key of ['latitude', 'longitude', 'accuracy', 'timestamp']) {
+      if (typeof raw[key] !== 'number' || !Number.isFinite(raw[key])) throw new BadRequestException('Location must contain numeric latitude, longitude, accuracy and timestamp.');
+    }
+    location = raw as unknown as DeviceLocation;
+    if (Math.abs(location.latitude) > 90 || Math.abs(location.longitude) > 180 || location.accuracy < 0 || location.accuracy > 20000000 || location.timestamp < 0 || location.timestamp > 8640000000000000) throw new BadRequestException('Invalid location measurement.');
+  }
+  return { enteredCode, normalizedCode: enteredCode.toUpperCase(), valid: /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(enteredCode), location };
 }
 
 function date(value: unknown, label: string): string | null {

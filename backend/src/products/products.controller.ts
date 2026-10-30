@@ -46,6 +46,10 @@ export class ProductsController {
   @Header('Cache-Control', 'no-store')
   createCode(@Param('id') id: string, @Body() body: unknown) { return this.products.createCode(id, body); }
 
+  @Post(':id/codes/bulk')
+  @Header('Cache-Control', 'no-store')
+  createCodeBatch(@Param('id') id: string, @Body() body: unknown) { return this.products.createCodeBatch(id, body); }
+
   @Put(':id/codes/:codeId')
   @Header('Cache-Control', 'no-store')
   updateCode(@Param('id') id: string, @Param('codeId') codeId: string, @Body() body: unknown) { return this.products.updateCode(id, codeId, body); }

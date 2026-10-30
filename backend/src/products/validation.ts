@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { countyNames } from '../location/county-location';
 
 function object(value: unknown, allowed: string[]): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new BadRequestException('Submit a JSON object.');
@@ -52,16 +53,21 @@ function date(value: unknown, label: string, required: boolean): string | null {
 }
 
 export function parseCode(value: unknown, creating: boolean) {
-  const data = object(value, ['batchNumber', 'manufactureDate', 'expiryDate', 'status', ...(creating ? ['codeValue'] : [])]);
-  let codeValue: string | undefined;
-  if (creating) {
-    codeValue = text(data.codeValue, 'Verification code', 80, true)!.toUpperCase();
-    if (!/^[A-Z0-9][A-Z0-9_-]{0,79}$/.test(codeValue)) throw new BadRequestException('Use letters, numbers, hyphens or underscores for the code, starting with a letter or number.');
-  }
+  const data = object(value, ['batchNumber', 'manufactureDate', 'expiryDate', 'status', 'distributionCounty']);
+  const distributionCounty = !creating && (data.distributionCounty === null || data.distributionCounty === '')
+    ? null : choice(data.distributionCounty, countyNames, 'distribution county');
   const manufactureDate = date(data.manufactureDate, 'Manufacture date', false);
   const expiryDate = date(data.expiryDate, 'Expiry date', true)!;
   if (manufactureDate && manufactureDate > expiryDate) throw new BadRequestException('Expiry date must be on or after manufacture date.');
-  return { codeValue, batchNumber: text(data.batchNumber, 'Batch number', 80, true)!, manufactureDate, expiryDate, status: choice(data.status, statuses, 'status') };
+  return { distributionCounty, batchNumber: text(data.batchNumber, 'Batch number', 80, true)!, manufactureDate, expiryDate, status: choice(data.status, statuses, 'status') };
+}
+
+export function parseCodeBatch(value: unknown) {
+  const { quantity, ...fields } = object(value, ['quantity', 'batchNumber', 'manufactureDate', 'expiryDate', 'status', 'distributionCounty']);
+  if (typeof quantity !== 'number' || !Number.isInteger(quantity) || quantity < 1 || quantity > 1000) {
+    throw new BadRequestException('Number of packages must be a whole number from 1 to 1000.');
+  }
+  return { quantity, data: parseCode(fields, true) };
 }
 
 export function parseList(value: unknown, products: boolean) {

@@ -11,10 +11,14 @@ import { ProductsController, ProductMutationGuard } from './products/products.co
 import { ProductsService } from './products/products.service';
 import { VerificationController, VerificationGuard } from './verification/verification.controller';
 import { VerificationService } from './verification/verification.service';
+import { ReportsController, ReportMutationGuard } from './reports/reports.controller';
+import { ReportsService } from './reports/reports.service';
+import { DashboardController } from './dashboard/dashboard.controller';
+import { DashboardService } from './dashboard/dashboard.service';
 
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true, validate: validateEnvironment })],
-  controllers: [HealthController, AuthController, ProductsController, VerificationController],
-  providers: [DatabaseService, AuthService, AuthMutationGuard, ProductsService, ProductMutationGuard, VerificationService, VerificationGuard, { provide: APP_GUARD, useClass: SessionGuard }],
+  controllers: [HealthController, AuthController, ProductsController, VerificationController, ReportsController, DashboardController],
+  providers: [DatabaseService, AuthService, AuthMutationGuard, ProductsService, ProductMutationGuard, VerificationService, VerificationGuard, ReportsService, ReportMutationGuard, DashboardService, { provide: APP_GUARD, useClass: SessionGuard }],
 })
 export class AppModule {}

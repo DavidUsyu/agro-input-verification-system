@@ -41,5 +41,7 @@ jobs:
       - run: npm run auth:test
       - run: npm run auth:pages:test
       - run: npm run products:test
+      - run: npm run reports:test
+      - run: npm run dashboard:test
       - run: npm run verification:test
       - run: npm run smoke

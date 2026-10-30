@@ -29,6 +29,9 @@ Add subsequent changes as `002_descriptive_name.sql`, then `003_...`, and so on.
 | `product_codes` | Product reference, unique code, batch, optional manufacture date, required expiry date, stored status and creation timestamp. |
 | `verification_records` | Optional farmer, optional registered code, submitted input, result/reason, saved product snapshot, account type, channel, optional county and verification timestamp. |
 | `auth_sessions` | Digest of an opaque session token, user reference, creation time and expiry. User deletion also removes its sessions. |
+| `distribution_counties` | Reference list of 47 county names used by code assignments. |
+| `product_reports` | Farmer-owned product concerns, entered details, optional product/code/verification links, review status and separate public/private responses. |
+| `report_reviews` | Transactional review audit history with administrator identity and report version. |
 
 The application tables are initially empty. There are no seeded accounts, default passwords or claimed regulatory records. `schema_migrations` is a separate infrastructure table, not a business entity.
 
@@ -78,9 +81,10 @@ Use explicit column lists when selecting users, especially for API responses. Do
 - Products are limited to `seed` and `fertilizer`, and only an administrator profile can be recorded as their creator. A stored registration number is a reference, not evidence of approval by a regulator.
 - Product and code statuses are `active`, `inactive` and `suspicious`. Codes are unique regardless of case and cannot contain whitespace. Future lookup queries should use `upper(code_value) = upper($1)` so they use the unique index. The entered string in verification history is retained separately.
 - Expiry cannot precede manufacture when the manufacture date is known. Expired products remain valid historical data. The verification service derives the `expired` outcome from the Kenyan calendar date instead of storing an expiry flag that becomes stale.
-- Verification results are `verified`, `expired`, `inactive`, `suspicious`, `unregistered`, `invalid` and `reported`. `reported` is reserved for the reporting milestone. `web` and `ussd` are accepted channels; this does not implement USSD access.
+- Verification results are `verified`, `expired`, `inactive`, `suspicious`, `unregistered`, `invalid`, `review_required` and `reported`. `reported` is reserved for the reporting milestone. `web` and `ussd` are accepted channels; this does not implement USSD access.
 - An unknown or invalid code has no `product_code_id`. The other outcomes require a registered code reference. Invalid input may be empty; non-invalid input must contain a value. Inputs are limited to the diagram's 80-character field; the API must reject overlong input before insertion.
 - `farmer_id` is nullable so guests can verify products. All event timestamps use `TIMESTAMPTZ` and default to the database transaction's current time. Verification results are historical snapshots, not automatically changed when a product is later edited.
+- Migration 004 adds a nullable `product_codes.distribution_county` reference without guessing assignments for legacy printed codes. New API records require a county. Verification history snapshots the assignment, derived verification county, device/unavailable/legacy source and private assessment. Raw coordinates are never persisted; old profile counties remain legacy data, not current-location evidence.
 
 ## Deletion and indexes
 
