@@ -55,6 +55,7 @@ export function ReportHistory({ administrator = false, initialSearch = '', initi
       <div className="history-record-heading"><div><h3>#{report.id} — {report.productName}</h3><p className="cell-note">{reportReasons[report.reason]} · {verificationTime(report.createdAt)} EAT</p></div><span className={`status-badge report-${report.status}`}>{reportStatuses[report.status]}</span></div>
       <details><summary>View report details</summary><div className="report-details">
         <dl className="service-list"><div><dt>Category</dt><dd>{report.category==='seed' ? 'Seed' : 'Fertilizer'}</dd></div><div><dt>Package code</dt><dd>{report.codeValue ?? 'Not provided'}</dd></div><div><dt>Seller</dt><dd>{report.sellerName ?? 'Not provided'}</dd></div><div><dt>Seller location</dt><dd>{report.sellerLocation ?? 'Not provided'}</dd></div><div><dt>County (self-reported)</dt><dd>{report.county ?? 'Not provided'}</dd></div>{report.verificationId && <div><dt>Linked verification</dt><dd>#{report.verificationId}</dd></div>}{administrator && <div><dt>Reported by</dt><dd>{report.farmerName}</dd></div>}</dl>
+        <p className="cell-note">Submitted through {report.channel === 'ussd' ? 'USSD' : 'the website'}.</p>
         <h4>Reported concern</h4><p className="product-description">{report.description}</p>
         {report.response && <><h4>Administrator response</h4><p className="product-description">{report.response}</p></>}
         {report.resolution && <p><strong>Resolution:</strong> {reportResolutions[report.resolution]}</p>}

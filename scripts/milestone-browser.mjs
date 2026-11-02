@@ -203,6 +203,11 @@ try {
   await visit('/register'); await until("!!document.querySelector('form [name=fullName]')"); await delay(300);
   await fill({fullName:'Milestone Farmer',email:'milestone-farmer@example.invalid',phone:'0712345678',county:'Nairobi',password,confirmPassword:password}); await submit();
   await until("location.pathname === '/farmer' && document.body.textContent.includes('Milestone Farmer')");
+  await until("!!document.querySelector('[name=ussdPin]')");
+  await fill({ussdPhone:'0712345678',currentPassword:password,ussdPin:'482759',confirmUssdPin:'482759'});await submit();
+  await until("document.body.textContent.includes('USSD PIN saved.')");
+  assert.equal(await evaluate("document.querySelector('[name=ussdPin]').value"),'');
+  await evaluate("document.querySelector('[aria-labelledby=ussd-settings-heading]').scrollIntoView({block:'start',behavior:'instant'})");await screenshot('ussd-pin-settings-mobile.png');
   await checkCode(packageCode,'Record matched');
   assert.equal(await evaluate("!!document.querySelector('a[href=\"/farmer/history\"]')"),true);
   await click('View my history','a');
@@ -347,6 +352,23 @@ try {
   await evaluate("document.querySelector('.dashboard-recent a[href^=\"/admin/reports?q=\"]').click()");
   await until("location.pathname==='/admin/reports' && !!document.querySelector('.report-record')");
   assert.equal(await evaluate("document.querySelector('form [name=q]').value"),dashboard.recentReports[0].productName);
+  await visit('/admin/ussd');await until("!!document.querySelector('[name=simulatorPhone]')");
+  await fill({simulatorPhone:'0712345678'});await submit();await until("document.querySelector('.ussd-screen pre')?.textContent.includes('AgroVerify')");
+  async function ussdAnswer(value,expected) {
+    await fill({ussdAnswer:value});await evaluate("document.querySelector('form[aria-label=\"USSD response\"]').requestSubmit()");
+    await until(`document.querySelector('.ussd-screen pre')?.textContent.includes(${JSON.stringify(expected)}) && !document.querySelector('[name=ussdAnswer]')?.disabled`);
+  }
+  await ussdAnswer('1','Enter the package code');await ussdAnswer('DEMO-SEED-OK','Current county');await ussdAnswer('1','Verification requires review');
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);await screenshot('ussd-simulator-desktop.png');
+  await click('Start session');await until("document.querySelector('.ussd-screen pre')?.textContent.includes('AgroVerify')");
+  await ussdAnswer('2','Enter your 6-digit USSD PIN');assert.equal(await evaluate("document.querySelector('[name=ussdAnswer]').type"),'password');
+  await ussdAnswer('482759','Farmer account');await ussdAnswer('2','Enter package code');await ussdAnswer('9','Enter the product name');
+  await ussdAnswer('USSD packaging concern','Product type');await ussdAnswer('1','Choose concern');await ussdAnswer('3','Describe the concern');
+  await ussdAnswer('The package seal was broken.','Enter shop');await ussdAnswer('9','Current county');await ussdAnswer('1','Submit this product concern');await ussdAnswer('1','submitted.');
+  const ussdReport=(await client.query("SELECT r.channel,r.farmer_id,r.status,u.email FROM product_reports r JOIN users u ON u.id=r.farmer_id WHERE r.product_name='USSD packaging concern'")).rows[0];
+  assert.equal(ussdReport.channel,'ussd');assert.equal(ussdReport.status,'submitted');assert.equal(ussdReport.email,'milestone-farmer@example.invalid');
+  await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);await screenshot('ussd-simulator-mobile.png');
   await client.query("UPDATE auth_sessions SET created_at=CURRENT_TIMESTAMP-interval '2 days',expires_at=CURRENT_TIMESTAMP-interval '1 day' WHERE user_id=(SELECT id FROM users WHERE email='browser-admin@example.invalid')");
   assert.equal(await evaluate("fetch('/api/dashboard').then(r=>r.status)"),401);
   await visit('/verify'); await until("!!document.querySelector('form [name=code]')"); await delay(250); await fill({code:'DEMO-SEED-OK'}); await submit();
@@ -358,7 +380,7 @@ try {
   assert.equal((await command('Network.getCookies',{urls:[webBase]})).cookies.some(item=>item.name==='agro_session'),false);
   assert.equal(await evaluate("fetch('/api/verifications').then(r=>r.status)"),401);
   assert.deepEqual(exceptions,[]);
-  console.log('Milestone browser checks passed: dashboard totals/charts/filters/recovery/navigation, bulk package generation/download, location verification, reporting/review/privacy, history isolation, preserved snapshots and desktop/mobile layouts.');
+  console.log('Milestone browser checks passed: USSD PIN setup/simulator/reporting, dashboard totals/charts/filters/recovery/navigation, bulk package generation/download, location verification, reporting/review/privacy, history isolation, preserved snapshots and desktop/mobile layouts.');
 } finally {
   if (socket?.readyState === WebSocket.OPEN) { await command('Browser.close').catch(() => {}); socket.close(); } else browser?.kill();
   for (const request of pending.values()) clearTimeout(request.timeout);

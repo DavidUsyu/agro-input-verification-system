@@ -8,7 +8,7 @@ export interface CatalogueProduct { id: string; name: string; category: 'seed' |
 export interface ProductReport {
   id: string; productId: string | null; verificationId: string | null; verificationResult: string | null;
   productName: string; category: 'seed' | 'fertilizer'; codeValue: string | null;
-  sellerName: string | null; sellerLocation: string | null; county: string | null;
+  sellerName: string | null; sellerLocation: string | null; county: string | null; channel?: 'web' | 'ussd';
   reason: keyof typeof reportReasons; description: string; status: keyof typeof reportStatuses;
   resolution: keyof typeof reportResolutions | null; response: string | null; createdAt: string; updatedAt: string;
   version?: number; farmerName?: string; internalNote?: string | null; reviewedBy?: string | null;

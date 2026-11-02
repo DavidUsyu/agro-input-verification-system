@@ -183,3 +183,7 @@ GitHub Actions is configured to apply migrations and run database tests and appl
 - **The browser cannot reach the API:** confirm the backend is running, `NEXT_PUBLIC_API_URL` is correct, and `FRONTEND_ORIGIN` matches the browser address.
 
 Framework setup references: [Next.js installation](https://nextjs.org/docs/app/getting-started/installation), [NestJS first steps](https://docs.nestjs.com/first-steps), and the [official PostgreSQL image](https://hub.docker.com/_/postgres).
+
+## USSD
+
+USSD verification, farmer PIN access, reporting and personal history can be tested through the administrator's [local simulator](http://localhost:3000/admin/ussd). See [USSD setup and provider connection](docs/ussd.md) for the flow and Africa's Talking sandbox configuration. An external provider account/code is not connected yet. Run `npm.cmd run ussd:test` after building the backend.

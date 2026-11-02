@@ -229,3 +229,6 @@ h1 em { font-family: Georgia, serif; font-weight: 400; color: #537b35; }
   .account-heading { flex-direction: column; }
   .account-card { padding: 20px; }
 }
+.ussd-settings-form, .ussd-simulator form { display: grid; gap: 1rem; max-width: 36rem; }
+.ussd-screen { margin: 1.5rem 0; padding: 1.5rem; border: 1px solid var(--border, #c6d0bc); border-radius: 1rem; background: #eff3e8; max-width: 36rem; }
+.ussd-screen pre { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.8; margin: 0; }

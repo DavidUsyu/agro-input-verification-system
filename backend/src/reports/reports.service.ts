@@ -2,10 +2,11 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { DatabaseService } from '../database/database.service';
 import { parseId } from '../products/validation';
 import { reportQuery, review, submission } from './validation';
+import type { PoolClient } from 'pg';
 
 const fields = `r.id, r.product_id AS "productId", r.verification_id AS "verificationId", r.verification_result AS "verificationResult",
  r.product_name AS "productName",r.category,r.entered_code AS "codeValue",r.seller_name AS "sellerName",r.seller_location AS "sellerLocation",
- r.county,r.reason,r.description,r.status,r.resolution,r.response,r.created_at AS "createdAt",r.updated_at AS "updatedAt"`;
+ r.county,r.channel,r.reason,r.description,r.status,r.resolution,r.response,r.created_at AS "createdAt",r.updated_at AS "updatedAt"`;
 const privateFields = `,r.version,r.farmer_id AS "farmerId",u.full_name AS "farmerName",r.internal_note AS "internalNote",r.reviewed_by AS "reviewedBy",r.product_code_id AS "productCodeId"`;
 
 @Injectable()
@@ -22,7 +23,11 @@ export class ReportsService {
 
   async create(body: unknown, farmerId: string) {
     const input = submission(body);
-    const id = await this.database.transaction(async client => {
+    const id = await this.database.transaction(client => this.createWithClient(input, farmerId, client));
+    return this.get(id,farmerId,false);
+  }
+
+  async createWithClient(input: ReturnType<typeof submission>, farmerId: string, client: PoolClient, channel = 'web') {
       let enteredCode = input.codeValue;
       let verificationResult: string | null = null;
       if (input.verificationId) {
@@ -40,12 +45,10 @@ export class ReportsService {
       }
       const matched = enteredCode ? (await client.query('SELECT id FROM product_codes WHERE upper(code_value)=upper($1) FOR SHARE', [enteredCode])).rows[0] : null;
       const row = (await client.query(`INSERT INTO product_reports
-        (farmer_id,product_id,product_code_id,verification_id,verification_result,product_name,category,entered_code,seller_name,seller_location,county,reason,description)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
-      [farmerId,input.productId,matched?.id ?? null,input.verificationId,verificationResult,name,category,enteredCode,input.sellerName,input.sellerLocation,input.county,input.reason,input.description])).rows[0];
+        (farmer_id,product_id,product_code_id,verification_id,verification_result,product_name,category,entered_code,seller_name,seller_location,county,reason,description,channel)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+      [farmerId,input.productId,matched?.id ?? null,input.verificationId,verificationResult,name,category,enteredCode,input.sellerName,input.sellerLocation,input.county,input.reason,input.description,channel])).rows[0];
       return row.id as string;
-    });
-    return this.get(id,farmerId,false);
   }
 
   async list(query: unknown, farmerId: string | null, administrator: boolean) {

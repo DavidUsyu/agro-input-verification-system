@@ -32,6 +32,11 @@ export function validateEnvironment(values: Record<string, unknown>) {
   if (values.NODE_ENV === 'production' && (secure !== 'true' || frontendUrl.protocol !== 'https:')) {
     throw new Error('Production authentication requires HTTPS FRONTEND_ORIGIN and secure cookies.');
   }
+  const ussdToken = String(values.USSD_CALLBACK_TOKEN ?? '');
+  const ussdCode = String(values.USSD_SERVICE_CODE ?? '');
+  if (ussdToken && !/^[a-f0-9]{64}$/.test(ussdToken)) throw new Error('USSD_CALLBACK_TOKEN must be 64 random hexadecimal characters.');
+  if (ussdCode && !/^\*\d+(?:\*\d+)*#$/.test(ussdCode)) throw new Error('USSD_SERVICE_CODE must be the assigned USSD code.');
+  if (Boolean(ussdToken) !== Boolean(ussdCode)) throw new Error('Configure both USSD_CALLBACK_TOKEN and USSD_SERVICE_CODE, or leave both empty.');
   return { ...values, PORT: port, HOST: String(values.HOST ?? '127.0.0.1'), FRONTEND_ORIGIN: origin, DATABASE_URL: databaseUrl,
-    SESSION_TTL_HOURS: lifetime, SESSION_COOKIE_SECURE: secure === 'true' };
+    SESSION_TTL_HOURS: lifetime, SESSION_COOKIE_SECURE: secure === 'true', USSD_CALLBACK_TOKEN: ussdToken, USSD_SERVICE_CODE: ussdCode };
 }

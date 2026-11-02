@@ -2,6 +2,7 @@ import { LogoutButton } from './logout-button';
 import Link from 'next/link';
 import { SessionWatch } from './session-watch';
 import type { SessionUser } from '@/lib/auth-types';
+import { UssdSettings } from './ussd-settings';
 
 export function AccountPage({ user }: { user: SessionUser }) {
   const admin = user.role === 'administrator';
@@ -18,5 +19,6 @@ export function AccountPage({ user }: { user: SessionUser }) {
       : <section className="account-card"><p className="eyebrow">Your product checks</p><h2>Check products and keep your history</h2><p>Check a seed or fertilizer code against stored records and review your previous results.</p><div className="action-row"><Link className="button" href="/verify">Verify a code</Link><Link className="button button-secondary" href="/farmer/history">My verification history</Link></div></section>}
     {admin && <section className="account-card"><p className="eyebrow">Verification activity</p><h2>Review verification records</h2><p>View checks from farmers, guests and administrators, including the result and saved product details.</p><Link className="button" href="/admin/verifications">View verification records</Link></section>}
     <section className="account-card"><p className="eyebrow">Product concerns</p><h2>{admin ? 'Review farmer reports' : 'Report a product concern'}</h2><p>{admin ? 'Investigate reports, record review notes and respond to the farmer.' : 'Tell us about a concern with a seed or fertilizer package and follow its review.'}</p><div className="action-row">{!admin && <Link className="button" href="/farmer/reports/new">Report a product</Link>}<Link className={`button${admin ? '' : ' button-secondary'}`} href={admin ? '/admin/reports' : '/farmer/reports'}>{admin ? 'Review product reports' : 'My reports'}</Link></div></section>
+    {!admin && <UssdSettings />}
   </main>;
 }

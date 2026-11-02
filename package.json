@@ -29,6 +29,7 @@
     "products:test": "node --test backend/test/products.test.mjs",
     "reports:test": "node --test backend/test/reports.test.mjs",
     "dashboard:test": "node --test backend/test/dashboard.test.mjs",
+    "ussd:test": "node --test backend/test/ussd.test.mjs",
     "verification:test": "node --test backend/test/location.test.mjs backend/test/verification.test.mjs",
     "e2e:test": "node scripts/milestone-browser.mjs",
     "local": "node scripts/start-local.mjs",

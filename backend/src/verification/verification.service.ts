@@ -4,6 +4,7 @@ import type { SessionUser } from '../auth/auth.types';
 import { parseHistory, parseVerification } from './validation';
 import type { VerificationOutcome } from './validation';
 import { assessLocation } from '../location/county-location';
+import type { PoolClient } from 'pg';
 
 interface ProductSnapshot {
   id: string; name: string; category: string; manufacturer: string; registrationNo: string | null;
@@ -25,9 +26,17 @@ export class VerificationService {
 
   async verify(body: unknown, user?: SessionUser) {
     const input = parseVerification(body);
-    const location = assessLocation(input.location);
     try {
-      return await this.database.transaction(async (client) => {
+      return await this.database.transaction(client => this.verifyWithClient(input, user, client));
+    } catch {
+      throw new ServiceUnavailableException('Unable to complete and save this verification. Please try again shortly.');
+    }
+  }
+
+  // Internal transport context only; web request bodies cannot supply county/channel.
+  async verifyWithClient(input: ReturnType<typeof parseVerification>, user: SessionUser | undefined, client: PoolClient, declaredCounty?: string) {
+    const ussd = declaredCounty !== undefined;
+    const location = ussd ? { county: declaredCounty, status: 'resolved' } : assessLocation(input.location);
         let match: MatchRow | undefined;
         if (input.valid) {
           match = (await client.query<MatchRow>(`SELECT c.id, c.distribution_county AS "distributionCounty",
@@ -63,14 +72,10 @@ export class VerificationService {
         const farmerId = user?.role === 'farmer' ? user.id : null;
         const row = (await client.query(`INSERT INTO verification_records
           (farmer_id,product_code_id,entered_code,result,reason,product_snapshot,actor_role,channel,county,distribution_county,location_source,location_status)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,'web',$8,$9,$10,$11)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$12,$8,$9,$10,$11)
           RETURNING id, entered_code AS "enteredCode", result, reason, product_snapshot AS product,
-            verified_at AS "verifiedAt", channel`, [farmerId, match?.id ?? null, input.enteredCode, result, reason, match?.product ?? null, user?.role ?? 'guest', location.county, match?.distributionCounty ?? null, input.location ? 'device_reported' : 'unavailable', locationStatus])).rows[0];
+            verified_at AS "verifiedAt", channel`, [farmerId, match?.id ?? null, input.enteredCode, result, reason, match?.product ?? null, user?.role ?? 'guest', location.county, match?.distributionCounty ?? null, ussd ? 'self_reported' : input.location ? 'device_reported' : 'unavailable', locationStatus, ussd ? 'ussd' : 'web'])).rows[0];
         return { ...publicVerification(row), savedToAccount: farmerId !== null };
-      });
-    } catch {
-      throw new ServiceUnavailableException('Unable to complete and save this verification. Please try again shortly.');
-    }
   }
 
   async history(query: unknown, user: SessionUser, administrator: boolean) {
