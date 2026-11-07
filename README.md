@@ -95,7 +95,8 @@ Open:
 | http://localhost:3000 | Starter homepage |
 | http://localhost:3000/register | Create a farmer account |
 | http://localhost:3000/login | Shared farmer/administrator sign-in |
-| http://localhost:3000/farmer | Protected farmer account |
+| http://localhost:3000/farmer | Farmer home, quick actions and recent personal activity |
+| http://localhost:3000/farmer/account | Farmer profile and USSD PIN settings |
 | http://localhost:3000/admin | Protected administrator dashboard |
 | http://localhost:3000/admin/products | Administrator product catalogue and verification-code management |
 | http://localhost:3000/verify | Check a product code as a farmer, administrator or guest |
@@ -109,6 +110,8 @@ Open:
 | http://localhost:3001/api/health/ready | Runs a database query; returns HTTP 503 if PostgreSQL is unavailable |
 
 The local database listens on `127.0.0.1:5433`, leaving the usual PostgreSQL port 5432 available for other projects. Both application servers also bind to the local machine by default.
+
+Farmer home puts **Verify a product** first, with reporting and history alongside it. Signed-in farmers get desktop navigation and a bottom navigation bar on phones. Verification results show the next action, expiry date and batch first, with additional product details available on expansion. **Report this product** carries available product details and the package code into the concern form. My reports shows review progress and administrator responses without expanding the full report. Profile and USSD access settings are under **Account**.
 
 Use Ctrl+C to stop the development servers. Run `npm run db:stop` to stop PostgreSQL without deleting its stored data. Restart it with `npm run db:up`.
 

@@ -2,10 +2,10 @@
 
 ## Farmer workflow
 
-1. Sign in as a farmer. Open **Reports → Report a product**, or **Report a concern** beside a verification result/history item.
-2. Search/select a catalogue product, or choose **Not listed / enter product details** and enter a name/category.
-3. Enter an optional code, select the reason, and describe the concern. Seller details and county are optional. A linked verification keeps its original code; use **Start an unlinked report** for a different package.
-4. Submit, keep the reference, and follow the review and administrator response in **My reports**.
+1. Sign in as a farmer. Choose **Report a concern** on farmer home or My reports, or **Report this product** beside a verification result/history item.
+2. Reports started from a check carry its available product details and code. For another product, expand the catalogue picker or enter a name/category manually. These are form suggestions: the API still validates ownership and uses current catalogue details when saving a selected product.
+3. Select the reason and describe the concern. Seller details and county are grouped separately and remain optional. A linked verification keeps its original code; use **Report a different product** to start without that link.
+4. Submit, keep the reference, and open **My reports**. Progress shows Submitted, Under review and Resolved; administrator responses and resolutions are visible directly on the report card. Expand **View report details** for the original concern, seller details and linked verification.
 
 Unknown products and packages without codes can be reported. A matched verification does not prevent reporting physical packaging concerns. Sign-in gives reports and responses a private owner; guests can still verify without signing in. Reports are observations for investigation, not findings that a real brand is counterfeit. No photos/attachments are collected in this version.
 

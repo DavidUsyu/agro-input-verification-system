@@ -127,7 +127,7 @@ try {
   assert.equal((await client.query('SELECT count(*)::int AS n FROM products')).rows[0].n, 2);
   assert.equal((await client.query('SELECT count(*)::int AS n FROM product_codes')).rows[0].n, 5);
   await command('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false });
-  for (const route of ['/admin','/admin/products','/admin/verifications','/farmer/history','/farmer/reports/new','/admin/reports']) { await visit(route); await until("location.pathname === '/login' && !!document.querySelector('form [name=identifier]')"); }
+  for (const route of ['/admin','/admin/products','/admin/verifications','/farmer/history','/farmer/account','/farmer/reports/new','/admin/reports']) { await visit(route); await until("location.pathname === '/login' && !!document.querySelector('form [name=identifier]')"); }
   assert.equal(await evaluate("fetch('/api/dashboard').then(r=>r.status)"),401);
   await delay(500); await fill({identifier:'browser-admin@example.invalid', password}); await submit();
   await until("location.pathname === '/admin' && document.body.textContent.includes('Browser Administrator')");
@@ -207,28 +207,47 @@ try {
   await checkCode('DEMO-SEED-OK','Record matched');
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);
   await screenshot('milestone-verification-mobile.png');
+  await click('Verify another product');
+  assert.equal(await evaluate("document.activeElement?.name==='code' && document.querySelector('[name=code]').value==='' && !document.querySelector('#result-heading')"),true);
   await visit('/register'); await until("!!document.querySelector('form [name=fullName]')"); await delay(300);
   await fill({fullName:'Milestone Farmer',email:'milestone-farmer@example.invalid',phone:'0712345678',county:'Nairobi',password,confirmPassword:password}); await submit();
   await until("location.pathname === '/farmer' && document.body.textContent.includes('Milestone Farmer')");
+  await until("document.body.textContent.includes('No saved checks yet.') && document.body.textContent.includes('No product concerns reported.')");
+  assert.equal(await evaluate("!!document.querySelector('.farmer-verify-banner a[href=\"/verify\"]') && getComputedStyle(document.querySelector('.farmer-mobile-nav')).display==='grid'"),true);
+  assert.equal(await evaluate("document.querySelector('.farmer-mobile-nav a[aria-current=page]').textContent"),'Home');
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);await screenshot('farmer-home-mobile.png');
+  await command('Emulation.setDeviceMetricsOverride',{width:1440,height:1000,deviceScaleFactor:1,mobile:false});await screenshot('farmer-home-desktop.png');
+  await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await click('Account & USSD settings','a');await until("location.pathname==='/farmer/account'");
   await until("!!document.querySelector('[name=ussdPin]')");
   await fill({ussdPhone:'0712345678',currentPassword:password,ussdPin:'482759',confirmUssdPin:'482759'});await submit();
   await until("document.body.textContent.includes('USSD PIN saved.')");
   assert.equal(await evaluate("document.querySelector('[name=ussdPin]').value"),'');
   await evaluate("document.querySelector('[aria-labelledby=ussd-settings-heading]').scrollIntoView({block:'start',behavior:'instant'})");await screenshot('ussd-pin-settings-mobile.png');
   await checkCode(packageCode,'Record matched');
+  assert.equal(await evaluate("document.querySelector('.verification-result').textContent.includes('What to do next')"),true);
+  await click('Report this product','a');await until("!!document.querySelector('form[aria-label=\"Report a product\"]')");
+  assert.equal(await evaluate("document.querySelector('[name=productName]').value"),'Assessment maize seed');
+  assert.equal(await evaluate("document.querySelector('[name=codeValue]').value"),packageCode);
+  await visit('/farmer/history');await until("!!document.querySelector('.history-record')");
   assert.equal(await evaluate("!!document.querySelector('a[href=\"/farmer/history\"]')"),true);
-  await click('View my history','a');
+  await click('History','a');
   await until("location.pathname === '/farmer/history' && !!document.querySelector('.history-record')");
-  await evaluate("document.querySelector('summary').click()"); await screenshot('milestone-farmer-history-mobile.png');
+  await evaluate("document.querySelector('.history-record > details > summary').click()"); await screenshot('milestone-farmer-history-mobile.png');
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);
   const personal = await evaluate("fetch('/api/verifications/mine').then(r=>r.json())");
   assert.equal(personal.total,1); assert.equal(personal.items[0].product.name,'Assessment maize seed');
   assert.equal(personal.items[0].county,undefined); assert.equal(personal.items[0].distributionCounty,undefined); assert.equal(personal.items[0].locationStatus,undefined);
-  await click('Report a concern','a');
-  await until("!!document.querySelector('form[aria-label=\"Report a product\"]') && document.querySelector('select:not([name])').options.length>1");
+  assert.equal(await evaluate("document.querySelector('.farmer-filters').open"),false);
+  await evaluate("document.querySelector('.farmer-filters > summary').click()");
+  await fill({q:'NO-MATCH-UX-CHECK'});await submit();await until("document.body.textContent.includes('No verification records found')");
+  await click('Clear filters');await until("document.querySelectorAll('.history-record').length===1 && !document.body.textContent.includes('Loading verification history')");
+  assert.equal(await evaluate("document.querySelector('[name=q]').value"),'');
+  await click('Report this product →','a');
+  await until("!!document.querySelector('form[aria-label=\"Report a product\"]') && document.querySelector('[name=catalogueProduct]').options.length>1");
   assert.equal(await evaluate("document.querySelector('[name=codeValue]').value"),packageCode);
   assert.equal(await evaluate("document.querySelector('[name=codeValue]').readOnly"),true);
-  await evaluate(`(() => {const select=document.querySelector('select:not([name])');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,${JSON.stringify(createdProduct)});select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  assert.equal(await evaluate("document.querySelector('[name=catalogueProduct]').value"),createdProduct);
   await until("document.querySelector('[name=productName]').value==='Assessment maize seed'");
   await fill({reason:'damaged_packaging',description:'The package seal was broken before purchase.',sellerName:'Assessment shop',sellerLocation:'Test market',county:'Nakuru'});
   await evaluate("document.querySelector('form[aria-label=\"Report a product\"]').scrollIntoView({behavior:'instant'})");
@@ -237,11 +256,16 @@ try {
   await until("document.body.textContent.includes('Report received')");
   const reportId=(await client.query('SELECT id FROM product_reports WHERE verification_id=$1',[personal.items[0].id])).rows[0].id;
   await click('View my reports','a'); await until("!!document.querySelector('.report-record')");
+  assert.equal(await evaluate("document.querySelector('.farmer-report-progress [aria-current=step]').textContent.includes('Submitted')"),true);
+  assert.equal(await evaluate("document.querySelector('.farmer-filters').open"),false);
+  await evaluate("document.querySelector('.farmer-filters > summary').click()");
+  await fill({q:'NO-MATCH-REPORT'});await submit();await until("document.body.textContent.includes('No reports found')");
+  await click('Clear filters');await until("document.querySelectorAll('.report-record').length===1 && !document.body.textContent.includes('Loading reports')");
   await evaluate("document.querySelector('.report-record summary').click()");
   assert.equal(await evaluate("document.body.textContent.includes('The package seal was broken before purchase.')"),true);
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);
   await screenshot('farmer-reports-mobile.png');
-  await visit('/farmer/reports/new'); await until("!!document.querySelector('[name=productName]')");
+  await visit('/farmer/reports/new'); await until("!!document.querySelector('[name=productName]') && document.querySelector('[name=catalogueProduct]').options.length>1");
   await fill({productName:'Unlisted fertilizer package',category:'fertilizer',reason:'wrong_label',description:'The label does not identify the supplier clearly.'}); await submit();
   await until("document.body.textContent.includes('Report received')");
   const ownReports=await evaluate("fetch('/api/reports/mine').then(r=>r.json())");assert.equal(ownReports.total,2);
@@ -292,6 +316,14 @@ try {
   await visit('/admin');await until("!!document.querySelector('.account-heading')");await logout();
   await fill({identifier:'milestone-farmer@example.invalid',password});await submit();await until("location.pathname==='/farmer'");
   await visit('/farmer/reports');await until("!!document.querySelector('.report-record .report-resolved') && !document.body.textContent.includes('Loading reports')");
+  assert.equal(await evaluate("document.querySelector('.farmer-review-response').getBoundingClientRect().height>0"),true);
+  assert.equal(await evaluate("document.querySelector('.report-resolved').closest('.report-record').querySelector('.farmer-report-progress [aria-current=step]').textContent.includes('Resolved')"),true);
+  assert.equal(await evaluate("document.body.textContent.includes('PRIVATE-BROWSER-REVIEW')"),false);
+  await screenshot('farmer-report-response-desktop.png');
+  await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);
+  await evaluate("document.querySelector('.farmer-review-response').scrollIntoView({behavior:'instant',block:'center'})");await screenshot('farmer-report-response-mobile.png');
+  await command('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
   await evaluate(`Array.from(document.querySelectorAll('.report-record')).find(el=>el.textContent.includes('#${reportId} —')).querySelector('summary').click()`);
   assert.equal(await evaluate("document.body.textContent.includes('Please provide a receipt so we can investigate further.')"),true);
   const visibleReports=await evaluate("fetch('/api/reports/mine').then(r=>r.json())");assert.equal(JSON.stringify(visibleReports).includes('PRIVATE-BROWSER-REVIEW'),false);
@@ -407,6 +439,15 @@ try {
   assert.equal(await evaluate("fetch('/api/verifications').then(r=>r.status)"),401);
   assert.deepEqual(exceptions,[]);
   console.log('Milestone browser checks passed: USSD PIN setup/simulator/reporting, dashboard totals/charts/filters/recovery/navigation, bulk package generation/download, location verification, reporting/review/privacy, history isolation, preserved snapshots and desktop/mobile layouts.');
+} catch(error) {
+  if(socket?.readyState===WebSocket.OPEN) {
+    try {
+      const diagnostics=await evaluate(`({path:location.pathname,alerts:Array.from(document.querySelectorAll('[role=alert]')).map(el=>el.textContent),invalidFields:Array.from(document.querySelectorAll('form input,form select,form textarea')).filter(el=>!el.validity.valid).map(el=>({name:el.name,message:el.validationMessage})),heading:document.querySelector('h1')?.textContent})`);
+      await writeFile(path.join(artifacts,'milestone-failure.json'),JSON.stringify(diagnostics,null,2));
+      await screenshot('milestone-failure.png');
+    } catch { /* Preserve the original browser failure. */ }
+  }
+  throw error;
 } finally {
   if (socket?.readyState === WebSocket.OPEN) { await command('Browser.close').catch(() => {}); socket.close(); } else browser?.kill();
   for (const request of pending.values()) clearTimeout(request.timeout);

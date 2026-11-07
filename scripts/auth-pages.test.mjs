@@ -55,9 +55,10 @@ test('authentication pages tolerate session-service outages and preserve access 
         assert.match(html, /<form/);
         assert.equal(response.headers.get('set-cookie'), null, 'An outage must not erase the session');
       }
-      for (const route of ['farmer', 'admin']) {
+      for (const route of ['farmer', 'farmer/account', 'admin']) {
         const html = await (await fetch(`${base}/${route}`, { headers })).text();
         assert.doesNotMatch(html, /Your account<\/h2>/, 'An outage must not grant access to account content');
+        assert.doesNotMatch(html, /id="farmer-verify-heading"/, 'An outage must not grant access to farmer home content');
       }
     }
     mode = 'expired';
@@ -68,6 +69,8 @@ test('authentication pages tolerate session-service outages and preserve access 
     const protectedPage = await fetch(`${base}/farmer`, { headers, redirect: 'manual' });
     assert.equal(protectedPage.status, 307);
     assert.equal(protectedPage.headers.get('location'), '/login');
+    const protectedAccount=await fetch(`${base}/farmer/account`,{headers,redirect:'manual'});
+    assert.equal(protectedAccount.status,307);assert.equal(protectedAccount.headers.get('location'),'/login');
     for (const [role, target] of [['farmer', '/farmer'], ['administrator', '/admin']]) {
       mode = role;
       for (const route of ['login', 'register']) {

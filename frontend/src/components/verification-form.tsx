@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { UserRole } from '@/lib/auth-types';
 import type { VerificationRecord } from '@/lib/verification-types';
-import { resultLabels } from '@/lib/verification-types';
+import { productReportHref, resultLabels } from '@/lib/verification-types';
 import { VerificationDetails } from './verification-result';
 
 export function VerificationForm({ role }: { role?: UserRole }) {
@@ -19,6 +19,8 @@ export function VerificationForm({ role }: { role?: UserRole }) {
   const [locationNote, setLocationNote] = useState('');
   const [locating, setLocating] = useState(false);
   const resultRef = useRef<HTMLElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const requestVersion = useRef(0);
   const activeRequest = useRef<AbortController | null>(null);
   useEffect(() => () => { requestVersion.current++; activeRequest.current?.abort(); }, []);
@@ -72,27 +74,28 @@ export function VerificationForm({ role }: { role?: UserRole }) {
     finally { setBusy(false); }
   }
   return <>
-    <section className="account-card verify-input" aria-labelledby="check-heading">
-      <p className="eyebrow">From package to record</p><h2 id="check-heading">Enter the product code</h2>
-      <p>Find the code printed on your seed or fertilizer packaging.</p>
-      <form onSubmit={submit} aria-busy={busy} aria-label="Verify product code">
-        <label className="field">Product code<input name="code" className="code-input" value={code} onChange={(event) => { setCode(event.target.value); setRecord(null); }} disabled={busy} required maxLength={80} autoComplete="off" autoCapitalize="characters" spellCheck={false} aria-describedby="verification-hint" /></label>
-        <p id="verification-hint" className="field-hint">Enter up to 80 characters. Letter case does not matter.</p>
-        <p className="field-hint">With your permission, we use your current location to support this verification. Precise coordinates are not stored.</p>
+    <div className="verification-entry-layout"><section className="account-card verify-input" aria-labelledby="check-heading">
+      <p className="eyebrow">One package, one check</p><h2 id="check-heading">Enter the product code</h2>
+      <p>Find the unique code printed on your seed or fertilizer package.</p>
+      <form ref={formRef} onSubmit={submit} aria-busy={busy} aria-label="Verify product code">
+        <label className="field">Product code<input ref={inputRef} name="code" className="code-input" value={code} onChange={(event) => { setCode(event.target.value); setRecord(null); setLocationNote(''); setError(''); }} disabled={busy} required maxLength={80} autoComplete="off" autoCapitalize="characters" spellCheck={false} aria-describedby="verification-hint location-hint" placeholder="Type the code from the package" /></label>
+        <p id="verification-hint" className="field-hint">Include any hyphens. Capital and small letters both work.</p>
+        <p id="location-hint" className="verification-location-note">Your browser will ask for your current location to support this check. Allow access when prompted. Precise coordinates are not stored.</p>
         <button className="button" disabled={busy}>{locating ? 'Getting current location…' : busy ? 'Checking…' : 'Verify code'}</button>
       </form>
-      {locationNote && <p className="field-hint" role="status">{locationNote}</p>}
+      {locationNote && <div className="location-retry" role="status"><p>{locationNote}</p><button className="text-button" type="button" disabled={busy || sessionEnded} onClick={()=>formRef.current?.requestSubmit()}>Retry with location</button></div>}
       {error && <p className="form-error" role="alert">{error}</p>}
       {sessionEnded && <div className="action-row"><Link className="button" href="/login">Sign in again</Link><button className="button button-secondary" disabled={busy} onClick={continueAsGuest}>Continue as guest</button></div>}
       <p className="field-hint">{role === 'farmer' ? 'Your checks are saved in your personal verification history.' : role === 'administrator' ? 'Administrator checks appear in the all-records view.' : <>You can check without an account. <Link href="/login">Sign in</Link> to save future checks in your personal history.</>}</p>
-    </section>
+    </section><aside className="verification-help" aria-labelledby="verification-help-heading"><h2 id="verification-help-heading">What will I see?</h2><ol><li><strong>A clear result</strong><span>Whether the code matches a record or needs attention.</span></li><li><strong>Product details</strong><span>Available product, batch and expiry information to compare with your package.</span></li><li><strong>Your next step</strong><span>Guidance on checking the label or reporting a concern.</span></li></ol><p>A code that is not found does not by itself prove that a product is counterfeit.</p></aside></div>
     {record && <section ref={resultRef} tabIndex={-1} className={`account-card verification-result result-panel-${record.result}`} aria-labelledby="result-heading" aria-live="polite">
-      <p className="eyebrow">Verification result</p><h2 id="result-heading">{resultLabels[record.result]}</h2>
+      <div className="result-heading-row"><span className={`result-symbol result-${record.result}`} aria-hidden="true">{record.result==='verified'?'✓':'!'}</span><div><p className="eyebrow">Verification result</p><h2 id="result-heading">{resultLabels[record.result]}</h2></div></div>
       <p className="submitted-code">Submitted code: <strong>{record.enteredCode || '(empty)'}</strong></p>
       <VerificationDetails record={record} />
-      {record.savedToAccount && <Link className="button button-secondary" href="/farmer/history">View my history</Link>}
-      {role === 'administrator' && <Link className="button button-secondary" href="/admin/verifications">View all records</Link>}
-      {role === 'farmer' && <p><Link className="button button-secondary" href={`/farmer/reports/new?${new URLSearchParams({code:record.enteredCode,...(record.savedToAccount ? {verificationId:record.id} : {})})}`}>Report a concern</Link></p>}
+      <div className="action-row result-actions"><button className="button" type="button" onClick={()=>{setCode('');setRecord(null);setLocationNote('');setError('');inputRef.current?.focus();}}>Verify another product</button>
+      {role === 'farmer' && <Link className="button button-secondary" href={productReportHref(record,!!record.savedToAccount)}>Report this product</Link>}
+      {record.savedToAccount && <Link className="result-history-link" href="/farmer/history">View my history</Link>}
+      {role === 'administrator' && <Link className="button button-secondary" href="/admin/verifications">View all records</Link>}</div>
       {!role && <p className="field-hint"><Link href="/login">Sign in as a farmer</Link> to report a product concern.</p>}
     </section>}
   </>;

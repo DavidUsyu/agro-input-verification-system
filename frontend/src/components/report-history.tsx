@@ -8,6 +8,13 @@ import { reportReasons, reportResolutions, reportStatuses } from '@/lib/report-t
 import type { RecordPage } from '@/lib/product-types';
 import { verificationTime } from '@/lib/verification-types';
 import { Pagination } from './product-fields';
+import Link from 'next/link';
+import { RecordFilters } from './record-filters';
+
+function ReportProgress({status}:{status:ProductReport['status']}) {
+  const stages=Object.entries(reportStatuses);const current=stages.findIndex(([value])=>value===status);
+  return <ol className="farmer-report-progress" aria-label="Report progress">{stages.map(([value,label],index)=><li key={value} data-reached={index<=current} aria-current={value===status?'step':undefined}><span aria-hidden="true">{index<current?'✓':index+1}</span>{label}</li>)}</ol>;
+}
 
 export function ReviewForm({ report, onSaved, onDirtyChange }: { report:ProductReport; onSaved:()=>void; onDirtyChange?:(dirty:boolean)=>void }) {
   const request = useReportRequest();
@@ -48,17 +55,20 @@ export function ReportHistory({ administrator = false, initialSearch = '', initi
   },[administrator,request,query,revision]);
   function refresh() { setBusy(true);setRevision(value=>value+1); }
   function filter(event:FormEvent<HTMLFormElement>) {event.preventDefault();const data=new FormData(event.currentTarget);setBusy(true);setQuery({q:String(data.get('q')).trim(),status:String(data.get('status')),page:'1'});}
-  return <section className="account-card"><div className="section-toolbar"><h2>{administrator ? 'All product reports' : 'My product reports'}</h2><button className="button button-secondary" disabled={busy} onClick={refresh}>Refresh reports</button></div>
-    <form className="filters code-filters" aria-label="Filter product reports" onSubmit={filter}><label className="field">Search reports<input type="search" name="q" maxLength={160} defaultValue={initialSearch} placeholder="Product, code or seller" /></label><label className="field">Report status<select name="status" defaultValue={initialStatus}><option value="">All statuses</option>{Object.entries(reportStatuses).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><button className="button button-secondary" disabled={busy}>Apply filters</button></form>
+  return <section className="account-card"><div className="section-toolbar"><h2>{administrator ? 'All product reports' : `Submitted reports${records ? ` (${records.total})` : ''}`}</h2><button className="button button-secondary" disabled={busy} onClick={refresh}>Refresh reports</button></div>
+    <RecordFilters collapsible={!administrator} label="Search and filter reports" active={!!(query.q || query.status)}><form className="filters code-filters" aria-label="Filter product reports" onSubmit={filter}><label className="field">Search reports<input type="search" name="q" maxLength={160} defaultValue={initialSearch} placeholder="Product, code or seller" /></label><label className="field">Report status<select name="status" defaultValue={initialStatus}><option value="">All statuses</option>{Object.entries(reportStatuses).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><button className="button button-secondary" disabled={busy}>Apply filters</button>{!administrator && <button className="text-button" type="reset" disabled={busy} onClick={()=>{setBusy(true);setQuery({q:'',status:'',page:'1'});}}>Clear filters</button>}</form></RecordFilters>
     {notice && <p className="form-success" role="status">{notice}</p>}{error && <p className="form-error" role="alert">{error}</p>}{busy && <p role="status">Loading reports…</p>}
-    {!busy && records && <>{records.items.length===0 ? <p className="empty-state">No reports found. Submit a concern or adjust the filters.</p> : records.items.map(report=><article key={`${report.id}:${report.updatedAt}`} className="history-record report-record">
+    {!busy && records && <>{records.items.length===0 ? <div className="empty-state"><h3>No reports found</h3><p>Submit a concern or adjust the filters.</p>{!administrator && <Link className="button" href="/farmer/reports/new">Report a concern</Link>}</div> : records.items.map(report=><article key={`${report.id}:${report.updatedAt}`} className="history-record report-record">
       <div className="history-record-heading"><div><h3>#{report.id} — {report.productName}</h3><p className="cell-note">{reportReasons[report.reason]} · {verificationTime(report.createdAt)} EAT</p></div><span className={`status-badge report-${report.status}`}>{reportStatuses[report.status]}</span></div>
+      {!administrator && <><ReportProgress status={report.status}/><p className="report-status-explanation">{report.status==='submitted'?'Your report has been received and is waiting for review.':report.status==='under_review'?'An administrator is reviewing your concern.':'The review is complete. Read the response and resolution below.'}</p>
+        {report.response ? <section className="farmer-review-response" aria-label="Administrator response"><h4>Administrator response</h4><p className="product-description">{report.response}</p>{report.resolution && <p><strong>Resolution:</strong> {reportResolutions[report.resolution]}</p>}</section> : <p className="cell-note">No administrator response yet. Check back here for updates.</p>}
+      </>}
       <details><summary>View report details</summary><div className="report-details">
         <dl className="service-list"><div><dt>Category</dt><dd>{report.category==='seed' ? 'Seed' : 'Fertilizer'}</dd></div><div><dt>Package code</dt><dd>{report.codeValue ?? 'Not provided'}</dd></div><div><dt>Seller</dt><dd>{report.sellerName ?? 'Not provided'}</dd></div><div><dt>Seller location</dt><dd>{report.sellerLocation ?? 'Not provided'}</dd></div><div><dt>County (self-reported)</dt><dd>{report.county ?? 'Not provided'}</dd></div>{report.verificationId && <div><dt>Linked verification</dt><dd>#{report.verificationId}</dd></div>}{administrator && <div><dt>Reported by</dt><dd>{report.farmerName}</dd></div>}</dl>
         <p className="cell-note">Submitted through {report.channel === 'ussd' ? 'USSD' : 'the website'}.</p>
         <h4>Reported concern</h4><p className="product-description">{report.description}</p>
-        {report.response && <><h4>Administrator response</h4><p className="product-description">{report.response}</p></>}
-        {report.resolution && <p><strong>Resolution:</strong> {reportResolutions[report.resolution]}</p>}
+        {administrator && report.response && <><h4>Administrator response</h4><p className="product-description">{report.response}</p></>}
+        {administrator && report.resolution && <p><strong>Resolution:</strong> {reportResolutions[report.resolution]}</p>}
         <p className="field-hint">Updated {verificationTime(report.updatedAt)} EAT.</p>
         {administrator && <ReviewForm report={report} onSaved={()=>{setNotice(`Review saved for report #${report.id}.`);refresh();}} />}
       </div></details>

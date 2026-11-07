@@ -5,5 +5,5 @@ import { ReportHistory } from '@/components/report-history';
 
 export default async function FarmerReportsPage() {
   await requireUser('farmer');
-  return <main id="main" className="account-page"><SessionWatch /><Link className="back-link" href="/farmer">← My account</Link><div className="account-heading"><div><p className="eyebrow">Your concerns</p><h1>My reports</h1><p>Follow the progress of your submitted product concerns and read administrator responses.</p></div><Link className="button" href="/farmer/reports/new">Report a product</Link></div><ReportHistory /></main>;
+  return <main id="main" className="account-page farmer-page"><SessionWatch /><Link className="back-link" href="/farmer">← Farmer home</Link><div className="account-heading farmer-heading"><div><p className="eyebrow">Your product concerns</p><h1>My reports</h1><p>Follow each report from submission to review and read the response.</p></div><Link className="button" href="/farmer/reports/new">Report a concern</Link></div><ReportHistory /></main>;
 }

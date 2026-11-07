@@ -28,6 +28,21 @@ const explanations: Record<string, string> = {
   review_required: 'We could not approve this product verification. Please contact the supplier for assistance.',
 };
 export function resultExplanation(record: VerificationRecord) { return record.result === 'review_required' ? explanations.review_required : explanations[record.reason] ?? 'Review the saved result and contact the supplier if you have concerns.'; }
+export const resultNextSteps: Record<VerificationOutcome,string> = {
+  verified:'Compare the product name, batch and expiry date below with your package. Report any differences or signs of tampering.',
+  expired:'Do not use the product. Contact the seller about a replacement and report the concern.',
+  inactive:'Confirm the product’s status with the supplier before buying or using it.',
+  suspicious:'Avoid using the product until the supplier or an administrator has clarified the concern.',
+  unregistered:'Check for a typing error and try again. If the code is still not found, contact the supplier or report the concern.',
+  invalid:'Check the printed code and enter it again, including any hyphens.',
+  reported:'Read the saved details and contact the supplier before using the product.',
+  review_required:'Contact the supplier before using the product. You can also submit a concern for an administrator to review.',
+};
+export function productReportHref(record: VerificationRecord, linked: boolean) {
+  return `/farmer/reports/new?${new URLSearchParams({code:record.enteredCode,...(linked?{verificationId:record.id}:{}),
+    ...(record.product?{productId:record.product.id,productName:record.product.name,category:record.product.category}:{}),
+  })}`;
+}
 export function verificationTime(value: string) {
   return new Intl.DateTimeFormat('en-KE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Nairobi' }).format(new Date(value));
 }
