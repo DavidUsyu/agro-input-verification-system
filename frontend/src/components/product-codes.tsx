@@ -77,7 +77,7 @@ export function ProductCodes({ productId }: { productId: string }) {
     setBusy(true); setQuery({ q: String(data.get('q')).trim(), status: String(data.get('status')), page: '1' });
   }
   return <section className="account-card" aria-labelledby="codes-heading">
-    <div className="section-toolbar"><div><p className="eyebrow">Product identification</p><h2 id="codes-heading">Verification codes</h2></div><button className="button" disabled={editing !== null} onClick={() => { setNotice(''); setEditing('new'); }}>New code</button></div>
+    <div className="section-toolbar"><div><p className="eyebrow">Batches &amp; packages</p><h2 id="codes-heading">Package codes</h2></div><button className="button" disabled={editing !== null} onClick={() => { setNotice(''); setEditing('new'); }}>Generate codes</button></div>
     <p className="field-hint">Each code belongs to this product and is unique across the system. Dates are shown as year-month-day. Expiry is separate from the record status.</p>
     {notice && <p className="form-success" role="status">{notice}</p>}
     {editing && <CodeForm key={editing === 'new' ? 'new' : editing.id} productId={productId} code={editing === 'new' ? undefined : editing} onCancel={() => setEditing(null)} onSaved={(saved) => {

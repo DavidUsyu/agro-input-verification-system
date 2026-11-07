@@ -1,13 +1,12 @@
-import Link from 'next/link';
 import { requireUser } from '@/lib/session';
 import { ProductManager } from '@/components/product-manager';
-import { SessionWatch } from '@/components/session-watch';
 
-export default async function ProductsPage() {
+export default async function ProductsPage({ searchParams }: { searchParams: Promise<Record<string,string|string[]|undefined>> }) {
   await requireUser('administrator');
-  return <main id="main" className="account-page products-page"><SessionWatch />
-    <Link href="/admin" className="back-link">← Administrator account</Link>
-    <div className="account-heading"><div><p className="eyebrow">Administrator workspace</p><h1>Product management</h1><p>Maintain product records and the codes used to identify them.</p></div></div>
-    <ProductManager />
+  const params=await searchParams;
+  const product=typeof params.product==='string' && /^[1-9]\d{0,18}$/.test(params.product) ? params.product : '';
+  return <main id="main" className="account-page products-page">
+    <div className="account-heading"><div><p className="eyebrow">Catalogue</p><h1>Products &amp; codes</h1><p>Maintain product details, batches, and unique package codes.</p></div></div>
+    <ProductManager key={product} initialProductId={product} />
   </main>;
 }

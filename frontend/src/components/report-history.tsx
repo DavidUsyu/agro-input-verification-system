@@ -9,7 +9,7 @@ import type { RecordPage } from '@/lib/product-types';
 import { verificationTime } from '@/lib/verification-types';
 import { Pagination } from './product-fields';
 
-function ReviewForm({ report, onSaved }: { report:ProductReport; onSaved:()=>void }) {
+export function ReviewForm({ report, onSaved, onDirtyChange }: { report:ProductReport; onSaved:()=>void; onDirtyChange?:(dirty:boolean)=>void }) {
   const request = useReportRequest();
   const [status,setStatus] = useState<string>(report.status==='submitted' ? 'under_review' : report.status);
   const [busy,setBusy] = useState(false); const [error,setError] = useState('');
@@ -17,16 +17,16 @@ function ReviewForm({ report, onSaved }: { report:ProductReport; onSaved:()=>voi
     event.preventDefault(); if (busy) return;
     const data = Object.fromEntries(new FormData(event.currentTarget));
     setBusy(true); setError('');
-    try { await request(`/${report.id}/review`,'PUT',{...data,status,version:report.version,resolution:status==='resolved' ? data.resolution : null}); onSaved(); }
+    try { await request(`/${report.id}/review`,'PUT',{...data,status,version:report.version,resolution:status==='resolved' ? data.resolution : null}); onDirtyChange?.(false); onSaved(); }
     catch (error) { setError(error instanceof Error ? error.message : 'Unable to save review.'); }
     finally { setBusy(false); }
   }
-  return <form className="record-form report-review" aria-label={`Review report ${report.id}`} onSubmit={submit} aria-busy={busy}>
+  return <form className="record-form report-review" aria-label={`Review report ${report.id}`} onSubmit={submit} onChange={()=>onDirtyChange?.(true)} aria-busy={busy}>
     <h4>Administrator review</h4><fieldset disabled={busy}>
       <div className="field-grid"><label className="field">Review status<select name="status" value={status} onChange={event=>setStatus(event.target.value)}><option value="under_review">Under review</option>{report.status!=='submitted' && <option value="resolved">Resolved</option>}</select></label>
       {status==='resolved' && <label className="field">Resolution<select name="resolution" required defaultValue={report.resolution ?? ''}><option value="" disabled>Select resolution</option>{Object.entries(reportResolutions).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label>}</div>
       <label className="field">Response to farmer {status!=='resolved' && <span className="optional">(optional)</span>}<textarea name="response" required={status==='resolved'} maxLength={2000} rows={3} defaultValue={report.response ?? ''} /></label>
-      <label className="field">Internal review note <span className="optional">(administrator only)</span><textarea name="internalNote" maxLength={2000} rows={3} defaultValue={report.internalNote ?? ''} /></label>
+      <div className="internal-note-field"><label className="field">Internal review note <span className="optional">(administrator only)</span><textarea name="internalNote" maxLength={2000} rows={3} defaultValue={report.internalNote ?? ''} /></label><p className="field-hint">Private working notes. The farmer sees only your response and resolution.</p></div>
       <p className="field-hint">Reviewing a report does not change product or code status. Record any status changes separately in product management.</p>
     </fieldset>{error && <p className="form-error" role="alert">{error}</p>}<button className="button" disabled={busy}>{busy ? 'Saving…' : 'Save review'}</button>
   </form>;

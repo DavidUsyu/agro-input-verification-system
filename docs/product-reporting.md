@@ -11,8 +11,8 @@ Unknown products and packages without codes can be reported. A matched verificat
 
 ## Administrator workflow
 
-1. Open **Reports** or **Review product reports**. Search by product/code/seller and filter by status.
-2. Expand **View report details**. Save **Under review**, optionally adding a response to the farmer and an internal note.
+1. Open **Product reports** in the administrator sidebar. Search by product/code/seller and filter by status.
+2. Choose a report from the queue. The panel shows the farmer's concern, seller details and any linked verification result alongside the review form. Save **Under review**, optionally adding a response to the farmer and an internal note. Unsaved review changes are flagged before switching reports or following a link.
 3. Investigate. Any product/code status change is made explicitly in product management; submitting/reviewing a report changes no verification result.
 4. Choose **Resolved**, select a resolution and enter a response to the farmer. Save. Reopen as **Under review** if further investigation is required.
 

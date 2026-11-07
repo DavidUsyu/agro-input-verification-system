@@ -7,17 +7,17 @@ export function ResultBadge({ result }: { result: VerificationRecord['result'] }
 
 export function VerificationDetails({ record, administrator = false }: { record: VerificationRecord; administrator?: boolean }) {
   const product = record.product;
-  return <div className="verification-details">
-    <p>{resultExplanation(record)}</p>
-    {administrator && record.locationStatus && <section className="private-verification-details" aria-label="Administrator verification details"><h3>Administrator review details</h3><dl className="service-list">
+  return <div className={`verification-details${administrator ? ' admin-verification-details' : ''}`}>
+    <div className={administrator ? 'verification-assessment-grid' : undefined}><section className={administrator ? 'verification-public-summary' : undefined}>{administrator && <><p className="eyebrow">Public verification result</p><h3>{resultLabels[record.result]}</h3></>}<p>{resultExplanation(record)}</p>{administrator && <p className="field-hint">This is the result returned to the person checking the code. Internal assessment details stay in the administrator workspace.</p>}</section>
+    {administrator && record.locationStatus && <section className="private-verification-details" aria-label="Administrator verification details"><p className="eyebrow">Administrator only</p><h3>Location &amp; internal assessment</h3><dl className="service-list">
       <div><dt>Distribution county at check</dt><dd>{record.distributionCounty ?? 'Not assigned'}</dd></div>
       <div><dt>Recorded county</dt><dd>{record.county ?? 'Not resolved'}</dd></div>
       <div><dt>Location source</dt><dd>{record.locationSource === 'legacy' ? 'Legacy record (profile county, not current location)' : record.locationSource === 'device_reported' ? 'Device-reported measurement' : record.locationSource === 'self_reported' ? 'Self-reported county (USSD, not device-confirmed)' : 'Unavailable'}</dd></div>
       <div><dt>Location assessment</dt><dd>{record.locationStatus.replaceAll('_', ' ')}</dd></div>
       <div><dt>Internal outcome reason</dt><dd>{record.reason.replaceAll('_', ' ')}</dd></div>
-    </dl></section>}
+    </dl>{record.locationSource === 'self_reported' && <p className="field-hint">The county was chosen by the farmer. It was not confirmed by a device location measurement.</p>}</section>}</div>
     {product && <>
-      <h3>{product.name}</h3>
+      {administrator && <p className="eyebrow">Saved product details at the time of the check</p>}<h3>{product.name}</h3>
       <dl className="service-list">
         {[
           ['Category', product.category === 'seed' ? 'Seed' : 'Fertilizer'], ['Manufacturer', product.manufacturer],

@@ -30,9 +30,9 @@ The seed command creates DEMO products only and preserves existing records and a
 
 ## Demonstrate the complete flow
 
-1. Sign in as an administrator at http://localhost:3000/login. Open **Manage products**.
+1. Sign in as an administrator at http://localhost:3000/login. Open **Products & codes** in the sidebar (or **Menu** on mobile). Open a product to see its overview, package codes, or edit form.
 2. Create a seed or fertilizer product, giving its name and manufacturer. Save it.
-3. Choose **New code**, enter the number of packages (1–1,000), batch/date details and the intended distribution county, then select **Generate code**. Every package gets a different identifier while sharing the batch details. Copy or download the generated codes. The administrator cannot choose or rename an identifier. Edit one package's metadata and show that changes persist without changing the other packages. Show Inactive/Suspicious controls.
+3. In **Package codes**, choose **Generate codes**, enter the number of packages (1–1,000), batch/date details and the intended distribution county, then select **Generate code**. Every package gets a different identifier while sharing the batch details. Copy or download the generated codes. The administrator cannot choose or rename an identifier. Edit one package's metadata and show that changes persist without changing the other packages. Show Inactive/Suspicious controls.
 4. Sign out. Open **Verify code**, enter that code as a guest, and allow current location. An accurate device reading in the assigned county allows an active, unexpired code to match. Compare the saved product/batch details. Denied, uncertain or mismatched location produces a generic review-required result; the detailed assessment is visible only to administrators. Demonstrate an unknown code.
 5. Create a farmer account with email or phone, then verify the code while signed in. Open **My verification history** and expand **View saved details**.
 6. Sign out and sign in as a different farmer. Their history contains only their checks; administrator product management is unavailable to them.

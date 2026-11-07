@@ -21,6 +21,8 @@ let schemaCreated = false;
 let sequence = 0;
 const pending = new Map();
 const exceptions = [];
+const dialogAccept = false;
+let lastDialog = '';
 let webOutput = '';
 
 function command(method, params = {}) {
@@ -32,7 +34,7 @@ function command(method, params = {}) {
   });
 }
 async function evaluate(expression) {
-  const response = await command('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
+  const response = await command('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true, userGesture: true });
   if (response.exceptionDetails) throw new Error('Browser evaluation failed');
   return response.result.value;
 }
@@ -109,6 +111,7 @@ try {
   socket.addEventListener('message', ({ data }) => {
     const message = JSON.parse(data);
     if (message.method === 'Runtime.exceptionThrown') exceptions.push(message.params.exceptionDetails.text);
+    if (message.method === 'Page.javascriptDialogOpening') { lastDialog = message.params.message; void command('Page.handleJavaScriptDialog', { accept: dialogAccept }); }
     const request = pending.get(message.id); if (!request) return;
     pending.delete(message.id); clearTimeout(request.timeout);
     if (message.error) request.reject(new Error(message.error.message)); else request.resolve(message.result);
@@ -134,11 +137,15 @@ try {
   assert.equal(await evaluate("document.querySelector('[data-metric=verifications]').textContent"),'0');
   assert.equal(await evaluate("document.body.textContent.includes('No verification or report activity in this period')"),true);
   const initialDashboard=await evaluate("fetch('/api/dashboard').then(r=>r.json())");assert.equal(initialDashboard.daily.length,30);
-  await click('Manage products','a'); await until("location.pathname === '/admin/products' && !!document.querySelector('tbody')");
+  assert.equal(await evaluate("document.querySelectorAll('nav[aria-label=\"Administrator navigation\"] a').length"),5);
+  assert.equal(await evaluate("document.querySelector('nav[aria-label=\"Administrator navigation\"] [aria-current=page]').textContent"),'Dashboard');
+  assert.equal(await evaluate("!!document.querySelector('.site-header')"),false);
+  assert.equal(await evaluate("!!document.querySelector('#attention-heading')"),true);
+  await click('Products & codes','a'); await until("location.pathname === '/admin/products' && !!document.querySelector('tbody')");
   await click('Add product'); await until("!!document.querySelector('form [name=manufacturer]')");
   await fill({name:'Assessment maize seed',manufacturer:'Assessment supplier only',registrationNo:'DEMO-ASSESSMENT',description:'Demonstration data for the end-to-end milestone.'}); await submit();
   await until("document.body.textContent.includes('Product created.') && document.body.textContent.includes('No codes found')");
-  await click('New code'); await until("!!document.querySelector('form [name=distributionCounty]')");
+  await click('Generate codes'); await until("!!document.querySelector('form [name=distributionCounty]')");
   assert.equal(await evaluate("!!document.querySelector('form [name=codeValue]')"),false);
   await fill({quantity:'3',batchNumber:'ASSESSMENT-BATCH',distributionCounty:'Nakuru',manufactureDate:'2020-01-01',expiryDate:'2099-01-01'});
   await screenshot('generated-code-form-desktop.png');
@@ -256,22 +263,31 @@ try {
   await visit('/admin/verifications'); await until("!!document.querySelector('.history-record')");
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);
   await command('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
-  await visit('/admin/reports');await until("document.querySelectorAll('.report-record').length===2");
-  await evaluate(`Array.from(document.querySelectorAll('.report-record')).find(el=>el.textContent.includes('#${reportId} —')).querySelector('summary').click()`);
+  await visit('/admin/reports');await until("document.querySelectorAll('.report-queue-item').length===2");
+  await evaluate(`document.querySelector('[data-report-id="${reportId}"]').click()`);
+  await until(`!!document.querySelector('form[aria-label="Review report ${reportId}"]')`);
+  assert.equal(await evaluate("document.querySelector('[aria-label=\"Related verification\"]').textContent.includes('Record matched')"),true);
+  await evaluate(`(() => {const input=document.querySelector('form[aria-label="Review report ${reportId}"] [name=response]');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'Unsaved working response');input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await until("document.body.textContent.includes('Unsaved review changes')");
+  await evaluate(`Array.from(document.querySelectorAll('.report-queue-item')).find(el=>el.dataset.reportId!==${JSON.stringify(reportId)}).click()`);
+  assert.match(lastDialog,/Discard unsaved/);
+  assert.equal(await evaluate(`!!document.querySelector('form[aria-label="Review report ${reportId}"]')`),true);
   async function saveReportReview(values) {
     await evaluate(`(() => {const form=document.querySelector('form[aria-label="Review report ${reportId}"]');for(const [name,value] of Object.entries(${JSON.stringify(values)})){const input=form.querySelector('[name="'+name+'"]');Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input),'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));}})()`);
     await evaluate(`document.querySelector('form[aria-label="Review report ${reportId}"]').requestSubmit()`);
   }
   await saveReportReview({response:'We are investigating the packaging concern.',internalNote:'PRIVATE-BROWSER-REVIEW'});
   await until(`document.body.textContent.includes('Review saved for report #${reportId}.') && !document.body.textContent.includes('Loading reports')`);
-  await evaluate(`Array.from(document.querySelectorAll('.report-record')).find(el=>el.textContent.includes('#${reportId} —')).querySelector('summary').click()`);
   await evaluate(`(() => {const select=document.querySelector('form[aria-label="Review report ${reportId}"] [name=status]');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(select,'resolved');select.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await until(`!!document.querySelector('form[aria-label="Review report ${reportId}"] [name=resolution]')`);
   await saveReportReview({resolution:'insufficient_information',response:'Please provide a receipt so we can investigate further.',internalNote:'PRIVATE-BROWSER-REVIEW'});
-  await until("!!document.querySelector('.report-record .report-resolved') && !document.body.textContent.includes('Loading reports')");
-  await evaluate(`Array.from(document.querySelectorAll('.report-record')).find(el=>el.textContent.includes('#${reportId} —')).querySelector('summary').click()`);
-  await evaluate("document.querySelector('.report-review').scrollIntoView({behavior:'instant',block:'center'})");
+  await until("!!document.querySelector('.report-review-panel .report-resolved') && !document.body.textContent.includes('Loading reports')");
+  await evaluate("document.querySelector('.report-workspace').scrollIntoView({behavior:'instant',block:'start'})");
   await screenshot('administrator-report-review-desktop.png');
+  await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);
+  await evaluate("document.querySelector('.report-review-panel').scrollIntoView({behavior:'instant',block:'start'})");await screenshot('administrator-report-review-mobile.png');
+  await command('Emulation.setDeviceMetricsOverride',{width:1440,height:1100,deviceScaleFactor:1,mobile:false});
   assert.equal((await client.query('SELECT count(*)::int AS n FROM report_reviews WHERE report_id=$1',[reportId])).rows[0].n,2);
   await visit('/admin');await until("!!document.querySelector('.account-heading')");await logout();
   await fill({identifier:'milestone-farmer@example.invalid',password});await submit();await until("location.pathname==='/farmer'");
@@ -291,7 +307,11 @@ try {
   assert.equal(await evaluate("document.body.textContent.includes('Milestone Farmer')"),true);
   await evaluate("document.querySelector('summary').click()"); await screenshot('milestone-admin-history-desktop.png');
   await visit('/admin/products'); await until("!!document.querySelector('tbody')");
-  await evaluate("document.querySelector('button[aria-label=\"Manage Assessment maize seed\"]').click()"); await until("!!document.querySelector('form [name=manufacturer]')");
+  await evaluate("document.querySelector('button[aria-label=\"Manage Assessment maize seed\"]').click()");await until("!!document.querySelector('.product-overview')");
+  assert.equal(await evaluate("!!document.querySelector('form [name=manufacturer]')"),false);
+  await screenshot('administrator-product-overview.png');await click('Edit product');await until("!!document.querySelector('form [name=manufacturer]')");
+  await fill({name:'Unsaved product title'});await until("document.body.textContent.includes('Unsaved product changes')");await click('Package codes');
+  assert.match(lastDialog,/Discard unsaved product/);assert.equal(await evaluate("document.querySelector('form [name=name]').value"),'Unsaved product title');
   await fill({name:'Updated assessment maize seed',status:'inactive'}); await submit(); await until("document.body.textContent.includes('Product updated.')");
   await checkCode(packageCode,'Inactive');
   assert.equal(await evaluate("document.body.textContent.includes('Updated assessment maize seed')"),true);
@@ -310,13 +330,16 @@ try {
   const countyChartTotals=await evaluate("Array.from(document.querySelectorAll('[aria-label=\"Verification county bar chart\"] [data-total]')).reduce((sum,row)=>sum+Number(row.dataset.total),0)");
   assert.equal(countyChartTotals,checkCount);
   assert.equal(await evaluate("Array.from(document.querySelectorAll('[aria-label=\"Report county bar chart\"] [data-total]')).reduce((sum,row)=>sum+Number(row.dataset.total),0)"),2);
-  await evaluate("document.querySelector('[aria-label=\"Verification county bar chart\"]').scrollIntoView({block:'center',behavior:'instant'})");
+  await evaluate("document.querySelector('.dashboard-secondary').open=true;document.querySelector('[aria-label=\"Verification county bar chart\"]').scrollIntoView({block:'center',behavior:'instant'})");
   await screenshot('county-bar-chart-desktop.png');
   await evaluate("scrollTo({top:0,behavior:'instant'})");await screenshot('administrator-dashboard-desktop.png');
   await evaluate("document.querySelector('.dashboard-grid').scrollIntoView({block:'center',behavior:'instant'})");await screenshot('administrator-dashboard-charts-desktop.png');
   await evaluate("document.querySelector('.chart-data summary').click()");
   assert.equal(await evaluate("document.querySelectorAll('.chart-data:not(.county-data) tbody tr').length"),30);
   await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await evaluate("scrollTo({top:0,behavior:'instant'});document.querySelector('.admin-menu-toggle').click()");
+  assert.equal(await evaluate("document.querySelector('.admin-menu-toggle').getAttribute('aria-expanded')"),'true');await screenshot('administrator-navigation-mobile.png');
+  await evaluate("document.querySelector('.admin-menu-toggle').click()");
   await evaluate("document.querySelector('.dashboard-stats').scrollIntoView({block:'start',behavior:'instant'})");
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);await screenshot('administrator-dashboard-mobile.png');
   await evaluate("document.querySelector('[aria-label=\"Verification county bar chart\"]').scrollIntoView({block:'center',behavior:'instant'})");
@@ -341,8 +364,11 @@ try {
   await click('Refresh dashboard');await until("document.body.textContent.includes('Dashboard test outage.')");
   assert.equal(await evaluate("!!document.querySelector('.dashboard-content')"),false);
   await evaluate("window.fetch=window.__dashboardFetch");await click('Try again');await until("!!document.querySelector('.dashboard-content')");
-  await evaluate("document.querySelector('.report-status-totals a[href=\"/admin/reports?status=submitted\"]').click()");
-  await until("location.pathname==='/admin/reports' && document.querySelectorAll('.report-record').length===1 && !document.body.textContent.includes('Loading reports')");
+  await evaluate("document.querySelector('.attention-grid a[href=\"/admin/verifications?result=review_required\"]').click()");
+  await until("location.pathname==='/admin/verifications' && !!document.querySelector('.history-record') && document.querySelector('form [name=result]').value==='review_required'");
+  await visit('/admin');await until("!!document.querySelector('.dashboard-content')");
+  await evaluate("document.querySelector('.attention-grid a[href=\"/admin/reports?status=submitted\"]').click()");
+  await until("location.pathname==='/admin/reports' && document.querySelectorAll('.report-queue-item').length===1 && !document.body.textContent.includes('Loading reports')");
   assert.equal(await evaluate("document.querySelector('form [name=status]').value"),'submitted');
   await visit('/admin');await until("!!document.querySelector('.dashboard-content')");
   await evaluate("document.querySelector('.dashboard-recent a[href^=\"/admin/verifications?q=\"]').click()");
@@ -350,7 +376,7 @@ try {
   assert.equal(await evaluate("document.querySelector('form [name=q]').value"),dashboard.recentVerifications[0].enteredCode);
   await visit('/admin');await until("!!document.querySelector('.dashboard-content')");
   await evaluate("document.querySelector('.dashboard-recent a[href^=\"/admin/reports?q=\"]').click()");
-  await until("location.pathname==='/admin/reports' && !!document.querySelector('.report-record')");
+  await until("location.pathname==='/admin/reports' && !!document.querySelector('.report-queue-item')");
   assert.equal(await evaluate("document.querySelector('form [name=q]').value"),dashboard.recentReports[0].productName);
   await visit('/admin/ussd');await until("!!document.querySelector('[name=simulatorPhone]')");
   await fill({simulatorPhone:'0712345678'});await submit();await until("document.querySelector('.ussd-screen pre')?.textContent.includes('AgroVerify')");
@@ -358,13 +384,13 @@ try {
     await fill({ussdAnswer:value});await evaluate("document.querySelector('form[aria-label=\"USSD response\"]').requestSubmit()");
     await until(`document.querySelector('.ussd-screen pre')?.textContent.includes(${JSON.stringify(expected)}) && !document.querySelector('[name=ussdAnswer]')?.disabled`);
   }
-  await ussdAnswer('1','Enter the package code');await ussdAnswer('DEMO-SEED-OK','Current county');await ussdAnswer('1','Verification requires review');
+  await ussdAnswer('1','Enter the package code');await ussdAnswer('DEMO-SEED-OK','Enter current county');await ussdAnswer('Baringo','Verification requires review');
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);await screenshot('ussd-simulator-desktop.png');
   await click('Start session');await until("document.querySelector('.ussd-screen pre')?.textContent.includes('AgroVerify')");
   await ussdAnswer('2','Enter your 6-digit USSD PIN');assert.equal(await evaluate("document.querySelector('[name=ussdAnswer]').type"),'password');
-  await ussdAnswer('482759','Farmer account');await ussdAnswer('2','Enter package code');await ussdAnswer('9','Enter the product name');
-  await ussdAnswer('USSD packaging concern','Product type');await ussdAnswer('1','Choose concern');await ussdAnswer('3','Describe the concern');
-  await ussdAnswer('The package seal was broken.','Enter shop');await ussdAnswer('9','Current county');await ussdAnswer('1','Submit this product concern');await ussdAnswer('1','submitted.');
+  await ussdAnswer('482759','Farmer account');await ussdAnswer('2','Enter package code');await ussdAnswer('9','Enter product name');
+  await ussdAnswer('USSD packaging concern','Product type');await ussdAnswer('1','USSD packaging concern');await ussdAnswer('3','Describe the concern');
+  await ussdAnswer('The package seal was broken.','Enter current county');await ussdAnswer('Baringo','1 Submit');await ussdAnswer('1','submitted.');
   const ussdReport=(await client.query("SELECT r.channel,r.farmer_id,r.status,u.email FROM product_reports r JOIN users u ON u.id=r.farmer_id WHERE r.product_name='USSD packaging concern'")).rows[0];
   assert.equal(ussdReport.channel,'ussd');assert.equal(ussdReport.status,'submitted');assert.equal(ussdReport.email,'milestone-farmer@example.invalid');
   await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});

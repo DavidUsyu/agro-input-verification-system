@@ -35,8 +35,9 @@ function session(number=phone,id=randomUUID()) {
   return {id,send,get text(){return text;}};
 }
 async function login(number=phone){const s=session(number);await s.send();await s.send('2');assert.match(await s.send(pin),/CON Farmer account/);return s;}
-async function county(s,name){const index=countyNames.indexOf(name);assert.ok(index>=0);for(let i=0;i<Math.floor(index/4);i++)await s.send('98');return s.send(String(index%4+1));}
-async function reportSession(){const s=await login();await s.send('2');await s.send(code);await s.send('Farmer entered seed');await s.send('1');await s.send('3');await s.send('The seal was broken before purchase.');await s.send('Market shop');assert.match(await county(s,'Nakuru'),/Submit this product concern/);return s;}
+async function county(s,name){assert.ok(countyNames.includes(name));return s.send(name);}
+async function reportSession(){const s=await login();await s.send('2');assert.match(await s.send(code),/Registered seed/);await s.send('3');await s.send('The seal was broken before purchase.');assert.match(await county(s,'Nakuru'),/1 Submit/);return s;}
+async function resume(){const s=session();await s.send();await s.send('2');assert.match(await s.send(pin),/Unfinished report found/);return s;}
 
 before(async()=>{
   client=await connectDatabase();await client.query(`CREATE SCHEMA ${schemaIdentifier(schema)}`);created=true;await migrate(client,{schema});await client.query("SELECT set_config('search_path',$1,false)",[schemaIdentifier(schema)]);
@@ -51,7 +52,10 @@ before(async()=>{
   app=await NestFactory.create(AppModule,{bodyParser:false,logger:false});configureApp(app);await app.listen(0,'127.0.0.1');base=await app.getUrl();
 });
 after(async()=>{await app?.close();if(created){assert.match(schema,/^agro_test_[a-f0-9]{32}$/);await client.query(`DROP SCHEMA ${schemaIdentifier(schema)} CASCADE`);}await client?.end();for(const key of ['DATABASE_URL','NODE_ENV','FRONTEND_ORIGIN','SESSION_COOKIE_SECURE','USSD_CALLBACK_TOKEN','USSD_SERVICE_CODE']){if(original[key]===undefined)delete process.env[key];else process.env[key]=original[key];}});
-beforeEach(()=>app.get(require('../dist/ussd/ussd.controller.js').UssdController).attempts.clear());
+beforeEach(async()=>{
+  app.get(require('../dist/ussd/ussd.controller.js').UssdController).attempts.clear();
+  await client.query('DELETE FROM ussd_report_drafts');
+});
 
 test('settings require farmer session, exact origin, current password and valid PIN',async()=>{
   assert.equal((await settings(undefined,'')).status,401);
@@ -73,7 +77,7 @@ test('gateway authenticates callback, validates service, bounds payload and acce
 });
 test('all county menus fit the budget and allow all 47 counties without hidden assignments',()=>{
   const {countyMenu}=require('../dist/ussd/menus.js');const names=[];
-  for(let page=0;page<12;page++){const screen=countyMenu(page);assert.ok(screen.length<=160,screen);for(const name of countyNames.slice(page*4,page*4+4)){assert.ok(screen.includes(name));names.push(name);}}
+  for(let page=0;page<12;page++){const screen=countyMenu(page,countyNames,true);assert.ok(screen.length<=160,screen);for(const name of countyNames.slice(page*4,page*4+4)){assert.ok(screen.includes(name));names.push(name);}}
   assert.equal(new Set(names).size,47);
 });
 test('a matching declared county approves an active current code and retains the self-reported source',async()=>{
@@ -117,19 +121,94 @@ test('confirming a report commits once even for concurrent provider retries',asy
   const before=(await client.query('SELECT count(*)::int AS n FROM product_reports')).rows[0].n;
   const responses=await Promise.all([s.send(undefined,{text}),s.send(undefined,{text})]);assert.equal(responses[0],responses[1]);assert.match(responses[0],/Report #\d+ submitted/);
   assert.equal((await client.query('SELECT count(*)::int AS n FROM product_reports')).rows[0].n,before+1);
-  const row=(await client.query('SELECT * FROM product_reports ORDER BY id DESC LIMIT 1')).rows[0];assert.equal(row.channel,'ussd');assert.equal(row.status,'submitted');assert.equal(row.farmer_id,farmer.id);assert.equal(row.product_name,'Farmer entered seed');assert.equal(row.entered_code,code);
-  const history=await login();assert.match(await history.send('4'),/Farmer entered seed/);
+  const row=(await client.query('SELECT * FROM product_reports ORDER BY id DESC LIMIT 1')).rows[0];assert.equal(row.channel,'ussd');assert.equal(row.status,'submitted');assert.equal(row.farmer_id,farmer.id);assert.equal(row.product_name,'Registered seed');assert.equal(row.entered_code,code);assert.ok(row.product_id);assert.equal(row.seller_location,null);
+  const history=await login();assert.match(await history.send('4'),/Registered seed/);
 });
 test('cancelled reports and failed writes leave no partial records and can retry safely',async()=>{
   const s=await reportSession(),count=(await client.query('SELECT count(*)::int AS n FROM product_reports')).rows[0].n;
-  assert.match(await s.send('2'),/cancelled/);assert.equal((await client.query('SELECT count(*)::int AS n FROM product_reports')).rows[0].n,count);
+  assert.match(await s.send('3'),/cancelled/);assert.equal((await client.query('SELECT count(*)::int AS n FROM product_reports')).rows[0].n,count);
   const retry=await reportSession();
   await client.query("CREATE FUNCTION reject_ussd_report() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced test failure'; END; $$");
   await client.query('CREATE TRIGGER reject_ussd_report BEFORE INSERT ON product_reports FOR EACH ROW EXECUTE FUNCTION reject_ussd_report()');
   const text=`${retry.text}*1`;assert.match(await retry.send(undefined,{text}),/temporarily unavailable/);
   assert.equal((await client.query('SELECT count(*)::int AS n FROM product_reports')).rows[0].n,count);
+  assert.equal((await client.query('SELECT status FROM ussd_report_drafts WHERE farmer_id=$1',[farmer.id])).rows[0].status,'active');
   await client.query('DROP TRIGGER reject_ussd_report ON product_reports');await client.query('DROP FUNCTION reject_ussd_report()');
   assert.match(await retry.send(undefined,{text}),/submitted/);
+});
+
+test('county entry accepts names and unique prefixes, disambiguates and retains a complete browse menu',async()=>{
+  const s=session();await s.send();await s.send('1');assert.match(await s.send(code),/Enter current county/);
+  assert.match(await s.send('not a county'),/Enter current county/);
+  assert.match(await s.send('Na'),/1 Nairobi/);
+  assert.match(await s.send('2'),/Code matched/); // Nairobi, Nakuru, Nandi, Narok
+  const browse=session();await browse.send();await browse.send('1');await browse.send(code);
+  assert.match(await browse.send('9'),/1 Baringo/);assert.match(await browse.send('98'),/1 Elgeyo/);
+  assert.match(await browse.send('99'),/1 Baringo/);assert.match(await browse.send('nAkUrU County'),/Code matched/);
+});
+
+test('expired sessions resume the latest saved answer after fresh PIN authentication',async()=>{
+  const old=await login();await old.send('2');await old.send(code);await old.send('3');
+  const snapshot=(await client.query('SELECT * FROM ussd_report_drafts WHERE farmer_id=$1',[farmer.id])).rows[0];
+  assert.equal(snapshot.state.step,'report_description');assert.equal(snapshot.state.productName,'Registered seed');
+  const serialized=JSON.stringify(snapshot);for(const value of [pin,phone,'pin_hash','version','farmerId'])assert.ok(!serialized.includes(value));
+  await client.query("UPDATE ussd_sessions SET expires_at=CURRENT_TIMESTAMP-interval '1 second' WHERE id=$1",[old.id]);
+  assert.match(await old.send('An opened seal on the package.'),/Session expired/);
+  const wrong=session();await wrong.send();await wrong.send('2');assert.match(await wrong.send('736284'),/not accepted/);
+  const stranger=session('+254700000902');await stranger.send();await stranger.send('2');assert.match(await stranger.send(pin),/not accepted/);
+  const next=await resume();assert.match(await next.send('1'),/Describe the concern/);
+  await next.send('The seal was open before purchase.');await next.send('Nakuru');
+  assert.match(await next.send('2'),/Enter shop/);assert.match(await next.send('Nakuru central market'),/1 Submit/);
+  assert.match(await next.send('1'),/submitted/);
+  const saved=(await client.query('SELECT * FROM product_reports ORDER BY id DESC LIMIT 1')).rows[0];
+  assert.equal(saved.county,'Nakuru');assert.equal(saved.seller_location,'Nakuru central market');
+});
+
+test('unknown products retain manual details, and save & exit resumes without submitting',async()=>{
+  const count=(await client.query('SELECT count(*)::int AS n FROM product_reports')).rows[0].n;
+  const first=await login();await first.send('2');assert.match(await first.send('UNKNOWN-INPUT-01'),/Enter product name/);
+  await first.send('Maize seed packet');await first.send('1');await first.send('5');await first.send('The code did not match the label.');
+  assert.match(await first.send('0'),/progress saved/);
+  const second=await resume();assert.match(await second.send('1'),/Enter current county/);await second.send('Nakuru');
+  assert.match(await second.send('0'),/progress saved/);assert.equal((await client.query('SELECT count(*)::int AS n FROM product_reports')).rows[0].n,count);
+  const third=await resume();assert.match(await third.send('1'),/Maize seed packet/);assert.match(await third.send('1'),/submitted/);
+  const row=(await client.query('SELECT * FROM product_reports ORDER BY id DESC LIMIT 1')).rows[0];
+  assert.equal(row.product_id,null);assert.equal(row.entered_code,'UNKNOWN-INPUT-01');assert.equal(row.product_name,'Maize seed packet');
+});
+
+test('resuming claims the draft and blocks stale sessions, including after submission or replacement',async()=>{
+  const old=await reportSession();const next=await resume();assert.match(await next.send('1'),/1 Submit/);
+  const count=(await client.query('SELECT count(*)::int AS n FROM product_reports')).rows[0].n;
+  assert.match(await next.send('1'),/submitted/);assert.match(await old.send('1'),/already submitted/);
+  assert.equal((await client.query('SELECT count(*)::int AS n FROM product_reports')).rows[0].n,count+1);
+  const original=await reportSession();const claimant=await resume();await claimant.send('1');
+  assert.match(await original.send('1'),/draft changed/);
+  const replacement=await resume();assert.match(await replacement.send('2'),/Enter package code/);
+  assert.match(await claimant.send('1'),/draft changed/);
+  assert.equal((await client.query('SELECT count(*)::int AS n FROM product_reports')).rows[0].n,count+1);
+  assert.match(await replacement.send('9'),/Enter product name/);
+});
+
+test('drafts expire after 24 hours and discarding clears content without a report',async()=>{
+  await reportSession();
+  await client.query("UPDATE ussd_report_drafts SET expires_at=CURRENT_TIMESTAMP-interval '1 second' WHERE farmer_id=$1",[farmer.id]);
+  const fresh=await login();assert.match(await fresh.send('2'),/Enter package code/);
+  const pending=await resume();assert.match(await pending.send('2'),/Enter package code/);
+  const row=(await client.query('SELECT state FROM ussd_report_drafts WHERE farmer_id=$1',[farmer.id])).rows[0];
+  assert.equal(row.state.step,'report_code');assert.equal(row.state.description,undefined);
+  const current=await resume();await current.send('1');await current.send('9');await current.send('Different product');await current.send('2');await current.send('6');await current.send('The label was difficult to read.');await current.send('Nakuru');await current.send('3');
+  const discarded=(await client.query('SELECT state,status FROM ussd_report_drafts WHERE farmer_id=$1',[farmer.id])).rows[0];
+  assert.equal(discarded.status,'discarded');assert.deepEqual(discarded.state,{});await login();
+});
+
+test('a reporting session opened before the upgrade adopts draft storage safely',async()=>{
+  const s=await reportSession();
+  await client.query('DELETE FROM ussd_report_drafts WHERE farmer_id=$1',[farmer.id]);
+  await client.query(`UPDATE ussd_sessions SET state=(state-'draftId'-'draftRevision'-'county') || '{"step":"report_seller"}'::jsonb WHERE id=$1`,[s.id]);
+  assert.match(await s.send('Nakuru'),/1 Submit/);
+  const row=(await client.query('SELECT state FROM ussd_report_drafts WHERE farmer_id=$1',[farmer.id])).rows[0];
+  assert.equal(row.state.county,'Nakuru');assert.equal(row.state.productName,'Registered seed');
+  assert.match(await s.send('1'),/submitted/);
 });
 test('PIN failures lock persistently and PIN reset invalidates earlier sessions and cached private results',async()=>{
   const old=await login();await old.send('3');
