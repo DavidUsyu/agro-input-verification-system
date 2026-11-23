@@ -43,12 +43,12 @@ export class UssdController {
     const expected = this.config.get<string>('USSD_CALLBACK_TOKEN');
     const digest = (value: string) => createHash('sha256').update(value).digest();
     if (!expected || !timingSafeEqual(digest(token),digest(expected))) throw new NotFoundException();
-    if (request.headers['content-type']?.split(';')[0].trim() !== 'application/x-www-form-urlencoded') return 'END Unsupported request format.';
+    if (request.headers['content-type']?.split(';')[0].trim() !== 'application/x-www-form-urlencoded') return 'END Unsupported request format / Muundo haukubaliki.';
     try {
       const input = callbackInput(body);
-      if (input.serviceCode !== this.config.get<string>('USSD_SERVICE_CODE')) return 'END Service unavailable.';
+      if (input.serviceCode !== this.config.get<string>('USSD_SERVICE_CODE')) return 'END Service unavailable / Huduma haipatikani.';
       return await this.run(body);
-    } catch { return 'END Invalid input. Dial again.'; }
+    } catch { return 'END Invalid input. Dial again / Ingizo si sahihi. Piga tena.'; }
   }
 
   private async run(body: unknown) {
@@ -58,12 +58,12 @@ export class UssdController {
       for (const [key,bucket] of this.attempts) if (bucket.reset<=now) this.attempts.delete(key);
       const key=createHash('sha256').update(input.phone).digest('hex');
       const bucket=this.attempts.get(key) ?? {count:0,reset:now+15*60*1000};
-      if (bucket.count>=200 || (!this.attempts.has(key) && this.attempts.size>=10000)) return 'END Too many requests. Please try later.';
+      if (bucket.count>=200 || (!this.attempts.has(key) && this.attempts.size>=10000)) return 'END Too many requests. Please try later / Maombi mengi. Jaribu baadaye.';
       bucket.count++; this.attempts.set(key,bucket);
       return await this.service.callback(body);
     } catch (error) {
-      if (error instanceof HttpException && error.getStatus()===400) return 'END Invalid input. Dial again.';
-      return 'END Service temporarily unavailable. Please try again.';
+      if (error instanceof HttpException && error.getStatus()===400) return 'END Invalid input. Dial again / Ingizo si sahihi. Piga tena.';
+      return 'END Service temporarily unavailable. Please try again / Huduma haipatikani. Jaribu tena.';
     }
   }
 }

@@ -86,11 +86,12 @@ test('migration preserves legacy outcomes without inventing snapshots', async ()
   const oldCheck=(await client.query("SELECT result,product_snapshot,location_status FROM verification_records WHERE entered_code='LEGACY-PRINTED'")).rows[0];
   assert.equal(oldCheck.result,'verified'); assert.equal(oldCheck.product_snapshot,null); assert.equal(oldCheck.location_status,'not_checked');
 });
-test('guest verification matches case-insensitive codes and persists public details without account data', async () => {
-  const before = await total(); const result = await check('  demo-match  ');
+test('guest verification matches a grouped numeric code and persists public details without account data', async () => {
+  const printed = generatedCodes.get('DEMO-MATCH').match(/.{4}/g).join(' ');
+  const before = await total(); const result = await check(`  ${printed}  `);
   assert.equal(result.result,'verified'); assert.equal(result.reason,'matched'); assert.equal(result.savedToAccount,false);
   assert.equal(result.product.name,productInput.name); assert.equal(result.product.expiryDate,'2099-01-01');
-  assert.equal(result.enteredCode,generatedCodes.get('DEMO-MATCH').toLowerCase()); assert.equal(await total(),before+1);
+  assert.equal(result.enteredCode,printed); assert.equal(result.product.codeValue,generatedCodes.get('DEMO-MATCH')); assert.equal(await total(),before+1);
   assert.equal(result.product.createdBy,undefined); assert.equal(result.farmerId,undefined);
   const saved = (await client.query('SELECT * FROM verification_records WHERE id=$1',[result.id])).rows[0];
   assert.equal(saved.farmer_id,null); assert.equal(saved.actor_role,'guest'); assert.equal(saved.channel,'web');

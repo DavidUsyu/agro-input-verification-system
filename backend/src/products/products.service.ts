@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ServiceUnavailableException } from '@nes
 import { DatabaseService } from '../database/database.service';
 import { parseCode, parseCodeBatch, parseId, parseList, parseProduct } from './validation';
 import { generateProductCode } from './code-generator';
+import { normalizePackageCode } from './package-code';
 
 const productFields = `p.id, p.name, p.category, p.manufacturer, p.registration_no AS "registrationNo",
   p.description, p.status, p.created_by AS "createdBy", p.created_at AS "createdAt",
@@ -49,11 +50,11 @@ export class ProductsService {
   async codes(productId: string, query: unknown) {
     await this.get(productId);
     const { q, status, page, pageSize } = parseList(query, false);
-    const filter = `WHERE product_id=$1 AND ($2::text IS NULL OR position(lower($2) in lower(code_value || ' ' || batch_number)) > 0)
+    const filter = `WHERE product_id=$1 AND ($2::text IS NULL OR position(lower($2) in lower(code_value || ' ' || batch_number)) > 0 OR upper(code_value)=$4)
       AND ($3::text IS NULL OR verification_status=$3)`;
-    const values = [productId, q, status];
+    const values = [productId, q, status, q && normalizePackageCode(q)];
     const count = await this.database.query<{ total: number }>(`SELECT count(*)::int AS total FROM product_codes ${filter}`, values);
-    const result = await this.database.query(`SELECT ${codeFields} FROM product_codes ${filter} ORDER BY created_at DESC, id DESC LIMIT $4 OFFSET $5`, [...values, pageSize, (page - 1) * pageSize]);
+    const result = await this.database.query(`SELECT ${codeFields} FROM product_codes ${filter} ORDER BY created_at DESC, id DESC LIMIT $5 OFFSET $6`, [...values, pageSize, (page - 1) * pageSize]);
     return { items: result.rows, total: count.rows[0].total, page, pageSize };
   }
 

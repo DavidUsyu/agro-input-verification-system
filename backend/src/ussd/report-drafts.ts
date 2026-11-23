@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
+import type { UssdLanguage } from './menus';
 
 export interface ReportData {
   step?: string; code?: string; county?: string; countyPage?: number; countyChoices?: string[];
@@ -7,6 +8,7 @@ export interface ReportData {
   description?: string; sellerLocation?: string;
 }
 export interface State extends ReportData {
+  language?: UssdLanguage;
   farmerId?: string; version?: string; draftId?: string; draftRevision?: number;
 }
 export interface Draft {

@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import type { DeviceLocation } from '../location/county-location';
+import { normalizePackageCode } from '../products/package-code';
 
 export const outcomes = ['verified', 'expired', 'inactive', 'suspicious', 'unregistered', 'invalid', 'reported', 'review_required'] as const;
 export type VerificationOutcome = typeof outcomes[number];
@@ -17,7 +18,7 @@ export function parseVerification(value: unknown) {
   if (enteredCode.length > 80 || [...enteredCode].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)) {
     throw new BadRequestException('Enter a product code of up to 80 characters without control characters.');
   }
-  // Keep submitted input in history; lookup uses an uppercase version.
+  const normalizedCode = normalizePackageCode(enteredCode);
   let location: DeviceLocation | null = null;
   if (data.location !== undefined && data.location !== null) {
     const raw = object(data.location, ['latitude', 'longitude', 'accuracy', 'timestamp']);
@@ -27,7 +28,8 @@ export function parseVerification(value: unknown) {
     location = raw as unknown as DeviceLocation;
     if (Math.abs(location.latitude) > 90 || Math.abs(location.longitude) > 180 || location.accuracy < 0 || location.accuracy > 20000000 || location.timestamp < 0 || location.timestamp > 8640000000000000) throw new BadRequestException('Invalid location measurement.');
   }
-  return { enteredCode, normalizedCode: enteredCode.toUpperCase(), valid: /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(enteredCode), location };
+  const valid = /^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(enteredCode) || /^[0-9]{12}$/.test(normalizedCode);
+  return { enteredCode, normalizedCode, valid, location };
 }
 
 function date(value: unknown, label: string): string | null {

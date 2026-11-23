@@ -108,7 +108,7 @@ test('products can be edited and inactivated without deleting their attribution'
 test('code creation generates a package code and preserves calendar dates and county', async () => {
   const response = await request(`/${product.id}/codes`, { method: 'POST', body: codeInput });
   assert.equal(response.status, 201); code = await response.json();
-  assert.match(code.codeValue, /^AGV-(?:[0-9A-Z]{4}-){4}[0-9A-Z]{4}$/); assert.equal(code.manufactureDate, '2026-03-08'); assert.equal(code.expiryDate, '2028-03-08');
+  assert.match(code.codeValue, /^[0-9]{12}$/); assert.equal(code.manufactureDate, '2026-03-08'); assert.equal(code.expiryDate, '2028-03-08');
   assert.equal(code.distributionCounty,'Nakuru');
   assert.equal(code.productId, product.id);
   assert.equal((await (await request(`/${product.id}`)).json()).codeCount, 1);
@@ -143,7 +143,7 @@ test('bulk generation saves 1000 distinct packages with shared batch metadata an
   assert.equal(result.total, 1000); assert.equal(result.items.length, 1000);
   assert.equal(new Set(result.items.map(item => item.codeValue)).size, 1000);
   for (const item of result.items) {
-    assert.match(item.codeValue, /^AGV-(?:[0-9A-Z]{4}-){4}[0-9A-Z]{4}$/);
+    assert.match(item.codeValue, /^[0-9]{12}$/);
     assert.equal(item.productId, other.id);
     for (const field of ['batchNumber', 'manufactureDate', 'expiryDate', 'status', 'distributionCounty']) assert.equal(item[field], codeInput[field]);
   }
@@ -154,7 +154,8 @@ test('bulk generation saves 1000 distinct packages with shared batch metadata an
   assert.equal(one.status, 201); assert.equal((await one.json()).items.length, 1);
   const edited = await request(`/${other.id}/codes/${result.items[0].id}`, { method: 'PUT', body: { ...codeInput, status: 'suspicious' } });
   assert.equal(edited.status, 200);
-  const unchanged = await (await request(`/${other.id}/codes?q=${encodeURIComponent(result.items[1].codeValue)}`)).json();
+  const printed = result.items[1].codeValue.match(/.{4}/g).join(' ');
+  const unchanged = await (await request(`/${other.id}/codes?q=${encodeURIComponent(printed)}`)).json();
   assert.equal(unchanged.items[0].status, 'active');
   assert.equal(unchanged.items[0].batchNumber, codeInput.batchNumber);
 });

@@ -17,28 +17,28 @@ export function createUssdProxy({ token, upstream }) {
       response.writeHead(404).end('Not found.'); request.resume(); return;
     }
     if (request.headers['content-type']?.split(';')[0].trim() !== 'application/x-www-form-urlencoded') {
-      response.writeHead(415).end('END Unsupported request format.'); request.resume(); return;
+      response.writeHead(415).end('END Unsupported request format / Muundo haukubaliki.'); request.resume(); return;
     }
     if (Number(request.headers['content-length'] ?? 0) > 8192) {
-      response.writeHead(413).end('END Request too large.'); request.resume(); return;
+      response.writeHead(413).end('END Request too large / Ombi ni kubwa mno.'); request.resume(); return;
     }
     try {
       let size = 0; const chunks = [];
       for await (const chunk of request) {
         size += chunk.length;
-        if (size > 8192) { response.writeHead(413).end('END Request too large.'); return; }
+        if (size > 8192) { response.writeHead(413).end('END Request too large / Ombi ni kubwa mno.'); return; }
         chunks.push(chunk);
       }
       const result = await fetch(upstream, {
         method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: Buffer.concat(chunks), redirect: 'error', signal: AbortSignal.timeout(6500),
       });
-      if (!result.ok) { response.writeHead(503).end('END Service temporarily unavailable. Please try again.'); return; }
+      if (!result.ok) { response.writeHead(503).end('END Service temporarily unavailable. Please try again / Huduma haipatikani. Jaribu tena.'); return; }
       const message = await result.text();
       if (!/^(CON|END) /.test(message) || message.length > 160) throw new Error('Invalid callback response.');
       response.end(message);
     } catch {
-      if (!response.writableEnded) response.writeHead(503).end('END Service temporarily unavailable. Please try again.');
+      if (!response.writableEnded) response.writeHead(503).end('END Service temporarily unavailable. Please try again / Huduma haipatikani. Jaribu tena.');
     }
   });
   server.requestTimeout = 8000;

@@ -45,8 +45,12 @@ function CodeForm({ productId, code, onSaved, onCancel }: { productId: string; c
   </form>;
 }
 
-function downloadCodes(codes: ProductCode[]) {
-  const url = URL.createObjectURL(new Blob([codes.map((code) => code.codeValue).join('\r\n') + '\r\n'], { type: 'text/plain;charset=utf-8' }));
+function formatPackageCode(code: string) {
+  return code.replace(/^([0-9]{4})([0-9]{4})([0-9]{4})$/, '$1 $2 $3');
+}
+
+function downloadCodes(codes: string[]) {
+  const url = URL.createObjectURL(new Blob([codes.join('\r\n') + '\r\n'], { type: 'text/plain;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url; link.download = 'package-codes.txt';
   document.body.appendChild(link); link.click(); link.remove();
@@ -62,6 +66,7 @@ export function ProductCodes({ productId }: { productId: string }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [generated, setGenerated] = useState<ProductCode[]>([]);
+  const printableCodes = generated.map((code) => formatPackageCode(code.codeValue));
   const [editing, setEditing] = useState<ProductCode | 'new' | null>(null);
   useEffect(() => {
     const controller = new AbortController();
@@ -82,7 +87,7 @@ export function ProductCodes({ productId }: { productId: string }) {
     {notice && <p className="form-success" role="status">{notice}</p>}
     {editing && <CodeForm key={editing === 'new' ? 'new' : editing.id} productId={productId} code={editing === 'new' ? undefined : editing} onCancel={() => setEditing(null)} onSaved={(saved) => {
       if (editing === 'new') {
-        setNotice(saved.length === 1 ? `Verification code generated: ${saved[0].codeValue}` : `${saved.length} package codes generated for batch ${saved[0].batchNumber}.`);
+        setNotice(saved.length === 1 ? `Verification code generated: ${formatPackageCode(saved[0].codeValue)}` : `${saved.length} package codes generated for batch ${saved[0].batchNumber}.`);
         setGenerated(saved);
         setQuery({ q: saved[0].batchNumber, status: '', page: '1' });
       } else { setNotice('Verification code updated.'); setGenerated([]); }
@@ -91,8 +96,8 @@ export function ProductCodes({ productId }: { productId: string }) {
     {generated.length > 0 && <div className="record-form" role="region" aria-label="Generated package codes">
       <h3>Generated codes — batch {generated[0].batchNumber}</h3>
       <p className="field-hint">{generated.length} package{generated.length === 1 ? '' : 's'} saved. Copy or download the codes below, one code per package. Saved codes remain available in the list.</p>
-      <label className="field">Package codes<textarea readOnly rows={Math.min(8, generated.length + 1)} value={generated.map((code) => code.codeValue).join('\n')} onFocus={(event) => event.currentTarget.select()} /></label>
-      <button className="button button-secondary" type="button" onClick={() => downloadCodes(generated)}>Download codes</button>
+      <label className="field">Package codes<textarea readOnly rows={Math.min(8, generated.length + 1)} value={printableCodes.join('\n')} onFocus={(event) => event.currentTarget.select()} /></label>
+      <button className="button button-secondary" type="button" onClick={() => downloadCodes(printableCodes)}>Download codes</button>
     </div>}
     <form key={`${query.q}:${query.status}`} className="filters code-filters" onSubmit={search} aria-label="Filter verification codes"><label className="field">Search codes<input name="q" type="search" maxLength={160} defaultValue={query.q} placeholder="Code or batch number" /></label><StatusField status={query.status as RecordStatus | ''} all /><button className="button button-secondary" disabled={busy}>Search codes</button></form>
     {error && <p className="form-error" role="alert">{error} <button className="text-button" onClick={() => { setBusy(true); setRevision((value) => value + 1); }}>Retry</button></p>}

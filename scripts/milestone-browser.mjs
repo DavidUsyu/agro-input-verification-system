@@ -156,7 +156,7 @@ try {
   assert.equal(packageRows.length,3); assert.equal(new Set(packageRows.map(row=>row.code_value)).size,3);
   assert.ok(packageRows.every(row=>row.batch_number==='ASSESSMENT-BATCH'));
   const visibleCodes = await evaluate("document.querySelector('[aria-label=\"Generated package codes\"] textarea').value.split('\\n')");
-  assert.deepEqual([...visibleCodes].sort(),packageRows.map(row=>row.code_value).sort());
+  assert.deepEqual([...visibleCodes].sort(),packageRows.map(row=>row.code_value.match(/.{4}/g).join(' ')).sort());
   assert.equal(await evaluate("!!Array.from(document.querySelectorAll('button')).find(button=>button.textContent==='Download codes')"),true);
   await click('Download codes');
   let downloadedCodes = [];
@@ -174,10 +174,10 @@ try {
   await screenshot('bulk-package-codes-mobile.png');
   await command('Emulation.setDeviceMetricsOverride', { width:1440, height:1100, deviceScaleFactor:1, mobile:false });
   const packageCode = packageRows[0].code_value;
-  assert.match(packageCode,/^AGV-(?:[0-9A-Z]{4}-){4}[0-9A-Z]{4}$/);
+  assert.match(packageCode,/^[0-9]{12}$/);
   await visit('/admin'); await until("!!document.querySelector('.account-heading')"); await logout();
   console.log('Administrator product and code creation passed. Checking guest outcomes?');
-  await checkCode(packageCode.toLowerCase(),'Record matched');
+  await checkCode(packageCode.match(/.{4}/g).join(' '),'Record matched');
   assert.equal(await evaluate("document.body.textContent.includes('Assessment maize seed')"),true);
   assert.equal(await evaluate("document.body.textContent.includes('ASSESSMENT-BATCH')"),true);
   assert.equal(await evaluate("!!document.querySelector('a[href=\"/farmer/history\"]')"),false);
@@ -411,15 +411,15 @@ try {
   await until("location.pathname==='/admin/reports' && !!document.querySelector('.report-queue-item')");
   assert.equal(await evaluate("document.querySelector('form [name=q]').value"),dashboard.recentReports[0].productName);
   await visit('/admin/ussd');await until("!!document.querySelector('[name=simulatorPhone]')");
-  await fill({simulatorPhone:'0712345678'});await submit();await until("document.querySelector('.ussd-screen pre')?.textContent.includes('AgroVerify')");
+  await fill({simulatorPhone:'0712345678'});await submit();await until("document.querySelector('.ussd-screen pre')?.textContent.includes('Choose language')");
   async function ussdAnswer(value,expected) {
     await fill({ussdAnswer:value});await evaluate("document.querySelector('form[aria-label=\"USSD response\"]').requestSubmit()");
     await until(`document.querySelector('.ussd-screen pre')?.textContent.includes(${JSON.stringify(expected)}) && !document.querySelector('[name=ussdAnswer]')?.disabled`);
   }
-  await ussdAnswer('1','Enter the package code');await ussdAnswer('DEMO-SEED-OK','Enter current county');await ussdAnswer('Baringo','Verification requires review');
+  await ussdAnswer('0','1 Verify product');await ussdAnswer('1','Enter the package code');await ussdAnswer('DEMO-SEED-OK','Enter current county');await ussdAnswer('Baringo','Verification requires review');
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);await screenshot('ussd-simulator-desktop.png');
-  await click('Start session');await until("document.querySelector('.ussd-screen pre')?.textContent.includes('AgroVerify')");
-  await ussdAnswer('2','Enter your 6-digit USSD PIN');assert.equal(await evaluate("document.querySelector('[name=ussdAnswer]').type"),'password');
+  await click('Start session');await until("document.querySelector('.ussd-screen pre')?.textContent.includes('Choose language')");
+  await ussdAnswer('0','1 Verify product');await ussdAnswer('2','Enter your 6-digit USSD PIN');assert.equal(await evaluate("document.querySelector('[name=ussdAnswer]').type"),'password');
   await ussdAnswer('482759','Farmer account');await ussdAnswer('2','Enter package code');await ussdAnswer('9','Enter product name');
   await ussdAnswer('USSD packaging concern','Product type');await ussdAnswer('1','USSD packaging concern');await ussdAnswer('3','Describe the concern');
   await ussdAnswer('The package seal was broken.','Enter current county');await ussdAnswer('Baringo','1 Submit');await ussdAnswer('1','submitted.');
@@ -427,6 +427,23 @@ try {
   assert.equal(ussdReport.channel,'ussd');assert.equal(ussdReport.status,'submitted');assert.equal(ussdReport.email,'milestone-farmer@example.invalid');
   await command('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
   assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);await screenshot('ussd-simulator-mobile.png');
+  // Ending the language screen must cancel locally, rather than selecting English via 0.
+  await click('Start session');await until("document.querySelector('.ussd-screen pre')?.textContent.includes('Choose language')");
+  await click('End session');await until("document.querySelector('.ussd-screen pre')?.textContent.includes('Session ended.') && !document.querySelector('[name=ussdAnswer]')");
+  await click('Start session');await until("document.querySelector('.ussd-screen pre')?.textContent.includes('Choose language')");
+  await ussdAnswer('1','Hakiki bidhaa');await ussdAnswer('2','Weka PIN yako ya USSD');
+  assert.equal(await evaluate("document.querySelector('[name=ussdAnswer]').type"),'password');
+  await ussdAnswer('482759','Akaunti ya mkulima');await ussdAnswer('1','Weka msimbo');await ussdAnswer('DEMO-SEED-OK','Weka jina la kaunti');
+  await ussdAnswer('Nakuru','Msimbo umelingana');
+  await screenshot('ussd-verification-kiswahili-mobile.png');
+  await click('Start session');await until("document.querySelector('.ussd-screen pre')?.textContent.includes('Choose language')");
+  await ussdAnswer('1','Hakiki bidhaa');await ussdAnswer('2','Weka PIN yako ya USSD');await ussdAnswer('482759','Akaunti ya mkulima');
+  await ussdAnswer('2','Weka msimbo wa pakiti');await ussdAnswer('9','Weka jina la bidhaa');await ussdAnswer('Ripoti ya mbegu','Aina ya bidhaa');
+  await ussdAnswer('1','Ripoti ya mbegu');await ussdAnswer('3','Eleza tatizo');await ussdAnswer('Muhuri wa pakiti ulikuwa umefunguliwa.','Weka jina la kaunti');
+  await ussdAnswer('Kaunti ya Nakuru','1 Wasilisha');await ussdAnswer('1','imewasilishwa');
+  const swReport=(await client.query("SELECT channel,reason,county,description FROM product_reports WHERE product_name='Ripoti ya mbegu'")).rows[0];
+  assert.equal(swReport.channel,'ussd');assert.equal(swReport.reason,'damaged_packaging');assert.equal(swReport.county,'Nakuru');assert.equal(swReport.description,'Muhuri wa pakiti ulikuwa umefunguliwa.');
+  assert.equal(await evaluate('document.documentElement.scrollWidth <= innerWidth'),true);await screenshot('ussd-report-kiswahili-mobile.png');
   await client.query("UPDATE auth_sessions SET created_at=CURRENT_TIMESTAMP-interval '2 days',expires_at=CURRENT_TIMESTAMP-interval '1 day' WHERE user_id=(SELECT id FROM users WHERE email='browser-admin@example.invalid')");
   assert.equal(await evaluate("fetch('/api/dashboard').then(r=>r.status)"),401);
   await visit('/verify'); await until("!!document.querySelector('form [name=code]')"); await delay(250); await fill({code:'DEMO-SEED-OK'}); await submit();
@@ -438,7 +455,7 @@ try {
   assert.equal((await command('Network.getCookies',{urls:[webBase]})).cookies.some(item=>item.name==='agro_session'),false);
   assert.equal(await evaluate("fetch('/api/verifications').then(r=>r.status)"),401);
   assert.deepEqual(exceptions,[]);
-  console.log('Milestone browser checks passed: USSD PIN setup/simulator/reporting, dashboard totals/charts/filters/recovery/navigation, bulk package generation/download, location verification, reporting/review/privacy, history isolation, preserved snapshots and desktop/mobile layouts.');
+  console.log('Milestone browser checks passed: English/Kiswahili USSD selection, PIN masking, verification and reporting, dashboard totals/charts/filters/recovery/navigation, bulk package generation/download, location verification, reporting/review/privacy, history isolation, preserved snapshots and desktop/mobile layouts.');
 } catch(error) {
   if(socket?.readyState===WebSocket.OPEN) {
     try {

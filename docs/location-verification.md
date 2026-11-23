@@ -4,7 +4,7 @@
 
 1. Sign in and open **Manage products → Manage → New code**.
 2. Enter the number of packages (1–1,000), batch number, manufacture/expiry dates, status and one distribution county.
-3. Select **Generate code**. The server generates a 96-bit cryptographically random identifier using Node's `crypto.randomBytes`, encoded with Crockford's Base32 alphabet and grouped for entry, for example `AGV-XXXX-XXXX-XXXX-XXXX-XXXX`.
+3. Select **Generate code**. The server generates a cryptographically random 12-digit identifier. Copy or download the printable format (for example, `4827 1936 5048`). The website and USSD also accept the same code without spaces.
 4. Copy or download the generated codes, one per package. All packages share the submitted batch details and county, but each receives its own identifier. Generation is atomic: either every requested code is saved or none are. Submitting again generates additional packages for the batch.
 5. Use **Edit** to record an approved distribution-county change. Printed identifiers cannot be renamed or moved between products.
 

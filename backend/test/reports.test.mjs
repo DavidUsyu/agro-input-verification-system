@@ -31,7 +31,7 @@ before(async()=>{
   Object.assign(process.env,{DATABASE_URL:url.toString(),NODE_ENV:'test',FRONTEND_ORIGIN:origin,SESSION_COOKIE_SECURE:'false'});
   farmer=await account('farmer');otherFarmer=await account('farmer');admin=await account('administrator');
   product=(await client.query("INSERT INTO products(name,category,manufacturer,created_by) VALUES ('Registered seed','seed','Test supplier',$1) RETURNING *",[admin.id])).rows[0];
-  code=(await client.query("INSERT INTO product_codes(product_id,code_value,batch_number,expiry_date,distribution_county) VALUES ($1,'REPORT-TEST-CODE','BATCH-1','2099-01-01','Nakuru') RETURNING *",[product.id])).rows[0];
+  code=(await client.query("INSERT INTO product_codes(product_id,code_value,batch_number,expiry_date,distribution_county) VALUES ($1,'082719365048','BATCH-1','2099-01-01','Nakuru') RETURNING *",[product.id])).rows[0];
   verification=(await client.query("INSERT INTO verification_records(farmer_id,product_code_id,entered_code,result,reason,actor_role,county,distribution_county,location_source,location_status) VALUES ($1,$2,$3,'review_required','distribution_mismatch','farmer','Nairobi','Nakuru','device_reported','mismatch') RETURNING *",[farmer.id,code.id,code.code_value])).rows[0];
   const {NestFactory}=require('@nestjs/core');const {AppModule}=require('../dist/app.module.js');const {configureApp}=require('../dist/config/configure-app.js');
   app=await NestFactory.create(AppModule,{bodyParser:false,logger:false});configureApp(app);await app.listen(0,'127.0.0.1');base=await app.getUrl();
@@ -52,12 +52,14 @@ test('report endpoints enforce farmer and administrator roles',async()=>{
   assert.equal((await request('/mine',{cookie:admin.cookie})).status,403);
 });
 test('registered reports keep authoritative catalogue details and do not flag products or codes',async()=>{
-  const response=await request('',{method:'POST',body:{...input,productId:product.id,productName:'Spoofed name',category:'fertilizer',codeValue:code.code_value,verificationId:verification.id}});
+  const printed=code.code_value.match(/.{4}/g).join(' ');
+  const response=await request('',{method:'POST',body:{...input,productId:product.id,productName:'Spoofed name',category:'fertilizer',codeValue:printed,verificationId:verification.id}});
   assert.equal(response.status,201);assert.equal(response.headers.get('cache-control'),'no-store');report=await response.json();
   assert.equal(report.productName,product.name);assert.equal(report.category,'seed');assert.equal(report.status,'submitted');assert.equal(report.verificationResult,'review_required');
   for(const key of ['internalNote','reviewedBy','farmerId','farmerName','version','productCodeId','distributionCounty','locationStatus'])assert.equal(key in report,false);
   assert.equal((await client.query('SELECT status FROM products WHERE id=$1',[product.id])).rows[0].status,'active');
   assert.equal((await client.query('SELECT verification_status FROM product_codes WHERE id=$1',[code.id])).rows[0].verification_status,'active');
+  assert.equal((await client.query('SELECT product_code_id FROM product_reports WHERE id=$1',[report.id])).rows[0].product_code_id,code.id);
   assert.deepEqual((await client.query('SELECT * FROM verification_records WHERE id=$1',[verification.id])).rows[0],verification);
 });
 test('unknown products and missing or unknown package codes can be reported',async()=>{

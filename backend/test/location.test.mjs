@@ -34,5 +34,5 @@ test('a county border within the measurement uncertainty is held for review', ()
 test('package codes are random, fixed-format and fit the existing database field', () => {
   const codes = Array.from({length:1000},()=>generateProductCode());
   assert.equal(new Set(codes).size,codes.length);
-  for (const code of codes) { assert.match(code,/^AGV-(?:[0-9A-Z]{4}-){4}[0-9A-Z]{4}$/); assert.ok(code.length<=80); assert.doesNotMatch(code,/[ILOU]/); }
+  for (const code of codes) assert.match(code, /^[0-9]{12}$/);
 });

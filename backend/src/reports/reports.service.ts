@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { parseId } from '../products/validation';
+import { normalizePackageCode } from '../products/package-code';
 import { reportQuery, review, submission } from './validation';
 import type { PoolClient } from 'pg';
 
@@ -33,7 +34,7 @@ export class ReportsService {
       if (input.verificationId) {
         const verification = (await client.query('SELECT entered_code,result FROM verification_records WHERE id=$1 AND farmer_id=$2 FOR SHARE', [input.verificationId,farmerId])).rows[0];
         if (!verification) throw new NotFoundException('Verification record not found in your account.');
-        if (enteredCode && enteredCode.toUpperCase() !== verification.entered_code.toUpperCase()) throw new BadRequestException('The package code must match the linked verification.');
+        if (enteredCode && normalizePackageCode(enteredCode) !== normalizePackageCode(verification.entered_code)) throw new BadRequestException('The package code must match the linked verification.');
         enteredCode = verification.entered_code || null;
         verificationResult = verification.result;
       }
@@ -43,7 +44,7 @@ export class ReportsService {
         if (!product) throw new NotFoundException('Catalogue product not found.');
         name = product.name; category = product.category;
       }
-      const matched = enteredCode ? (await client.query('SELECT id FROM product_codes WHERE upper(code_value)=upper($1) FOR SHARE', [enteredCode])).rows[0] : null;
+      const matched = enteredCode ? (await client.query('SELECT id FROM product_codes WHERE upper(code_value)=$1 FOR SHARE', [normalizePackageCode(enteredCode)])).rows[0] : null;
       const row = (await client.query(`INSERT INTO product_reports
         (farmer_id,product_id,product_code_id,verification_id,verification_result,product_name,category,entered_code,seller_name,seller_location,county,reason,description,channel)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,

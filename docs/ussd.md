@@ -2,12 +2,20 @@
 
 The application has a USSD menu engine, an administrator-only browser simulator, farmer PIN settings, and an Africa's Talking-compatible callback. The Africa's Talking sandbox is connected through a temporary HTTPS tunnel. A live handset dialling code has not been provisioned.
 
+## Language choice
+
+Every new session starts with **0 English** and **1 Kiswahili**. This first `0` selects English; it does not end the session. After choosing a language, the existing menu numbers apply: `1` verifies a product, `2` opens the farmer account, and `0` exits (or saves an unfinished report and exits).
+
+Menus, verification results, PIN prompts, report questions/confirmation, saved-report messages and history labels use the chosen language. Product names, identifiers, county names and farmers' answers remain unchanged. Both languages retain the 160-character response limit. When the session cannot be read, transport/validation fallback messages are bilingual.
+
+The choice lasts for that session. On redial, choose a language again; a saved report resumes in the newly chosen language without translating its stored answers. Sessions already open before this update continue in English. No database migration or account changes are needed because the choice is kept in existing session JSON.
+
 ## Try the flow locally
 
 1. Run `npm.cmd run local` and open `http://localhost:3000`.
 2. To enable personal menus, sign in as a farmer and open **My account → USSD account access**. Enter a Kenyan phone number, the current website password and a separate six-digit PIN twice. Numbers must be unique across accounts. Saving resets previous USSD sessions. Disable or reset access from this same section.
 3. Sign in as an administrator. Open **USSD testing** in the workspace sidebar, or `/admin/ussd`. On a small screen, open **Menu** first.
-4. Enter a Kenyan phone number and start a session. **1 Verify product** works without a farmer account. Enter an existing printed package code and type the current county name. A unique prefix is accepted; ambiguous prefixes show a shortlist. **9 Browse counties** retains the complete paginated list.
+4. Enter a Kenyan phone number and start a session. Choose **0 English** or **1 Kiswahili**, then **1 Verify product / Hakiki bidhaa**. Verification works without a farmer account. Enter an existing printed package code and type the current county name. A unique prefix is accepted; ambiguous prefixes show a shortlist. **9 Browse counties** retains the complete paginated list.
 5. **2 Farmer account** asks for the separate PIN. The number must match the farmer's saved phone. Account menus provide verification, reporting, the two most recent checks and the two most recent reports. They include web and USSD activity owned by that farmer.
 
 The simulator saves actual checks and confirmed reports to the local database; it does not invent product records. Reporting uses this shorter flow:
@@ -22,7 +30,7 @@ No SMS is sent. PIN setup can add/change a phone after website-password confirma
 
 ## Location and identifiers
 
-USSD uses the existing package codes, including their printed hyphens. No shorter numeric identifier has been introduced. Long codes are supported within the 80-character input limit but may be cumbersome to type.
+New packages use 12-digit codes shared by the website and USSD. For a code printed as `4827 1936 5048`, enter `482719365048` on the keypad. Existing codes still work, including their printed hyphens.
 
 The selected county is stored as `self_reported`, never as a device measurement. When it matches the private distribution county and the product/code are active, unexpired and not future-dated, the farmer sees **Code matched**, the product name and expiry date. The saved outcome is `verified` with reason `matched`. A mismatch or missing distribution assignment still returns **Verification requires review**. Expired, flagged, inactive, malformed and unknown codes retain the existing precedence. Assigned counties and internal reasons are never returned in the public response. A match is based on the farmer's declaration and does not independently prove physical location or package authenticity. Earlier saved outcomes, including `location_self_reported` review records, remain unchanged.
 
