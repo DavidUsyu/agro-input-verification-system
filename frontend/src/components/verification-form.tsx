@@ -78,8 +78,7 @@ export function VerificationForm({ role }: { role?: UserRole }) {
       <p className="eyebrow">One package, one check</p><h2 id="check-heading">Enter the product code</h2>
       <p>Find the unique code printed on your seed or fertilizer package.</p>
       <form ref={formRef} onSubmit={submit} aria-busy={busy} aria-label="Verify product code">
-        <label className="field">Product code<input ref={inputRef} name="code" className="code-input" value={code} onChange={(event) => { setCode(event.target.value); setRecord(null); setLocationNote(''); setError(''); }} disabled={busy} required maxLength={80} autoComplete="off" autoCapitalize="characters" spellCheck={false} aria-describedby="verification-hint location-hint" placeholder="Type the code from the package" /></label>
-        <p id="verification-hint" className="field-hint">Spaces between groups of four digits are optional. Include any hyphens on older codes.</p>
+        <label className="field">Product code<input ref={inputRef} name="code" className="code-input" value={code} onChange={(event) => { setCode(event.target.value); setRecord(null); setLocationNote(''); setError(''); }} disabled={busy} required maxLength={80} autoComplete="off" autoCapitalize="characters" spellCheck={false} aria-describedby="location-hint" placeholder="Type the code from the package" /></label>
         <p id="location-hint" className="verification-location-note">Your browser will ask for your current location to support this check. Allow access when prompted. Precise coordinates are not stored.</p>
         <button className="button" disabled={busy}>{locating ? 'Getting current location…' : busy ? 'Checking…' : 'Verify code'}</button>
       </form>
